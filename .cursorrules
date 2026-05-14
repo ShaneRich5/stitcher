@@ -1,0 +1,36 @@
+You are working on a frontend-only image carousel tool called "Sticher".
+
+Core principles:
+- This is a client-side only application (no backend, no APIs, no authentication).
+- All image processing must happen in the browser using Canvas APIs.
+- Do not introduce Next.js, server frameworks, or backend services.
+
+Architecture:
+- Use Vite + React + TypeScript.
+- Use Konva.js for all canvas rendering, transforms, and user interactions.
+- Use native Canvas API for image slicing/export logic.
+- Use JSZip for exporting multiple images as a zip file.
+
+Canvas rules:
+- The canvas is always the source of truth for image layout.
+- Avoid manipulating image data outside the canvas pipeline.
+- All exports must be derived from canvas rendering, not original image state.
+
+UI/UX rules:
+- Keep UI minimal and tool-focused (not app/platform-like).
+- Prioritize drag, scale, and slice interaction simplicity.
+- Use Tailwind CSS for styling.
+
+Code style:
+- Prefer simple functional components.
+- Keep state local unless shared across canvas/editor.
+- Avoid unnecessary libraries or abstractions.
+
+Do not:
+- Do not use Next.js.
+- Do not add a database or persistence layer.
+- Do not introduce TanStack Query or server-state libraries.
+- Do not add authentication or routing systems.
+
+Goal:
+Build a fast, lightweight, SCRL-like image slicing tool for social media carousels.
