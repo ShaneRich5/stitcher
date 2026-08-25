@@ -1,12 +1,12 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import { MultiTileComposer } from './components/multi-tile-composer'
-import { gridCounts } from './lib/exportTiles'
-import { tileIdForLayer } from './lib/rasterWorldTile'
-import { tileOriginX } from './lib/tileLayout'
+import { gridCounts } from './lib/export-tiles'
+import { tileIdForLayer } from './lib/raster-world-tile'
+import { tileOriginX } from './lib/tile-layout'
 import {
   buildAllTilesExportZip,
   downloadTileSlicesAsSeparatePngs,
-} from './lib/tileExportZip'
+} from './lib/tile-export-zip'
 import type { Layer, ProjectTile } from './types'
 
 function makeInitialTiles(): { tiles: ProjectTile[]; activeId: string } {

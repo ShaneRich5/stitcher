@@ -27,10 +27,11 @@ Code style:
 - Avoid unnecessary libraries or abstractions.
 
 Naming:
-- Component filenames use kebab-case (e.g. `multi-tile-composer.tsx`), not PascalCase.
+- All source filenames under `src/` use kebab-case (e.g. `multi-tile-composer.tsx`, `tile-export-zip.ts`, `app.tsx`), not PascalCase or camelCase.
+- Single-word names stay lowercase (`main.tsx`, `types.ts`, `index.css`).
 - Exported React component identifiers remain PascalCase in code (e.g. `MultiTileComposer`).
-- Import paths must match the kebab-case filename (e.g. `./components/multi-tile-composer`).
-- Prefer the same kebab-case convention for new modules under `src/components/`.
+- Exported functions/types keep their existing camelCase/PascalCase identifiers; only filenames change.
+- Import paths must match the kebab-case filename (e.g. `./components/multi-tile-composer`, `./lib/export-tiles`).
 
 Do not:
 - Do not use Next.js.

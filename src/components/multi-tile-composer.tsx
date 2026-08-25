@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Group, Image as KonvaImage, Layer, Line, Rect, Stage, Transformer } from 'react-konva'
 import Konva from 'konva'
-import { gridCounts } from '../lib/exportTiles'
-import { tileIdForLayer } from '../lib/rasterWorldTile'
-import { totalTilesWidth } from '../lib/tileLayout'
+import { gridCounts } from '../lib/export-tiles'
+import { tileIdForLayer } from '../lib/raster-world-tile'
+import { totalTilesWidth } from '../lib/tile-layout'
 import type { Layer as LayerModel, ProjectTile } from '../types'
 
 function checkerPattern(): HTMLCanvasElement {

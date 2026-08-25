@@ -1,5 +1,5 @@
 import type { Layer, ProjectTile } from '../types'
-import { tileOriginX } from './tileLayout'
+import { tileOriginX } from './tile-layout'
 
 /**
  * Rasterize world-space layers into one tile's export canvas (only the region that tile owns).

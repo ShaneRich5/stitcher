@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import type { Layer, ProjectTile } from '../types'
-import { sliceCompositeToGrid } from './exportTiles'
-import { rasterWorldLayersToTileCanvas } from './rasterWorldTile'
+import { sliceCompositeToGrid } from './export-tiles'
+import { rasterWorldLayersToTileCanvas } from './raster-world-tile'
 
 function slugify(label: string): string {
   return label
