@@ -1,13 +1,13 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
-import { MultiTileComposer } from './components/multi-tile-composer'
-import { gridCounts } from './lib/export-tiles'
-import { tileIdForLayer } from './lib/raster-world-tile'
-import { tileOriginX } from './lib/tile-layout'
+import { MultiTileComposer } from './multi-tile-composer'
+import { gridCounts } from '../lib/export-tiles'
+import { tileIdForLayer } from '../lib/raster-world-tile'
+import { tileOriginX } from '../lib/tile-layout'
 import {
   buildAllTilesExportZip,
   downloadTileSlicesAsSeparatePngs,
-} from './lib/tile-export-zip'
-import type { Layer, ProjectTile } from './types'
+} from '../lib/tile-export-zip'
+import type { Layer, ProjectTile } from '../types'
 
 function makeInitialTiles(): { tiles: ProjectTile[]; activeId: string } {
   const id = crypto.randomUUID()
@@ -54,7 +54,7 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(a.href)
 }
 
-export default function App() {
+export function StitcherEditor() {
   const init = useMemo(() => makeInitialTiles(), [])
   const [tiles, setTiles] = useState<ProjectTile[]>(init.tiles)
   const [layers, setLayers] = useState<Layer[]>([])
@@ -257,11 +257,11 @@ export default function App() {
   )
 
   return (
-    <div className="app">
-      <header className="app-header">
+    <div className="tool">
+      <header className="tool-header">
         <div>
-          <h1 className="app-title">Stitcher</h1>
-          <p className="app-sub">
+          <h1 className="tool-title">Carousel</h1>
+          <p className="tool-sub">
             Tiles are flush in one row, with layers in world space so images can span frames. Export
             the active tile as individual PNG slices, or export every tile in a single ZIP of flat
             prefixed filenames.
@@ -277,7 +277,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="app-body">
+      <div className="tool-body">
         <aside className="sidebar">
           <section className="panel">
             <h2>Tiles</h2>
