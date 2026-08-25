@@ -26,6 +26,12 @@ Code style:
 - Keep state local unless shared across canvas/editor.
 - Avoid unnecessary libraries or abstractions.
 
+Naming:
+- Component filenames use kebab-case (e.g. `multi-tile-composer.tsx`), not PascalCase.
+- Exported React component identifiers remain PascalCase in code (e.g. `MultiTileComposer`).
+- Import paths must match the kebab-case filename (e.g. `./components/multi-tile-composer`).
+- Prefer the same kebab-case convention for new modules under `src/components/`.
+
 Do not:
 - Do not use Next.js.
 - Do not add a database or persistence layer.

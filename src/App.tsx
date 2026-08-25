@@ -1,5 +1,5 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
-import { MultiTileComposer } from './components/MultiTileComposer'
+import { MultiTileComposer } from './components/multi-tile-composer'
 import { gridCounts } from './lib/exportTiles'
 import { tileIdForLayer } from './lib/rasterWorldTile'
 import { tileOriginX } from './lib/tileLayout'
