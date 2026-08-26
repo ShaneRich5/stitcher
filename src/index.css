@@ -173,10 +173,13 @@ p {
 
 .tool-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.tool-header-copy {
+  min-width: 0;
 }
 
 .tool-title {
@@ -332,8 +335,8 @@ p {
 }
 
 .field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
@@ -344,6 +347,7 @@ p {
   text-align: left;
   font-size: 13px;
   color: var(--text);
+  min-width: 0;
 }
 
 .field input {
@@ -353,6 +357,9 @@ p {
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-h);
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .field input:focus-visible {
@@ -478,8 +485,21 @@ p {
 .header-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.header-actions-group {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.header-actions-export {
+  margin-left: auto;
 }
 
 .preset-chips {
@@ -499,6 +519,19 @@ p {
   cursor: pointer;
 }
 
+.tile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.tile-add-btn {
+  width: 100%;
+  text-align: center;
+}
+
 .tile-chip {
   font: 14px var(--sans);
   padding: 6px 12px;
@@ -512,11 +545,6 @@ p {
 .tile-chip.active {
   border-color: var(--accent-border);
   background: var(--accent-bg);
-}
-
-.tile-chip.add {
-  border-style: dashed;
-  color: var(--text);
 }
 
 .tile-label-field {

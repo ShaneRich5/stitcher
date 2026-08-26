@@ -433,7 +433,7 @@ export function StitcherEditor() {
   return (
     <div className="tool">
       <header className="tool-header">
-        <div>
+        <div className="tool-header-copy">
           <h1 className="tool-title">Carousel</h1>
           <p className="tool-sub">
             Tiles are flush in one row, with layers in world space so images can span frames. Export
@@ -442,39 +442,125 @@ export function StitcherEditor() {
           </p>
         </div>
         <div className="header-actions">
-          <button
-            type="button"
-            className="btn secondary"
-            onClick={undo}
-            disabled={!canUndo}
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            className="btn secondary"
-            onClick={redo}
-            disabled={!canRedo}
-          >
-            Redo
-          </button>
-          <button type="button" className="btn secondary" onClick={exportThisTile}>
-            Export this tile (PNGs)
-          </button>
-          <button type="button" className="btn primary" onClick={exportAllTiles}>
-            Export all tiles (one ZIP)
-          </button>
+          <div className="header-actions-group">
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={undo}
+              disabled={!canUndo}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={redo}
+              disabled={!canRedo}
+            >
+              Redo
+            </button>
+          </div>
+          <div className="header-actions-group header-actions-export">
+            <button type="button" className="btn secondary" onClick={exportThisTile}>
+              Export this tile (PNGs)
+            </button>
+            <button type="button" className="btn primary" onClick={exportAllTiles}>
+              Export all tiles (one ZIP)
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="tool-body">
         <aside className="sidebar">
           <section className="panel">
+            <h2>Layers</h2>
+            <p className="hint muted layer-hint-top">
+              Shared across the row. Undo with Ctrl/Cmd+Z. Arrow keys nudge the selected layer.
+            </p>
+            <input
+              id={fileInputId}
+              type="file"
+              accept="image/*"
+              multiple
+              className="visually-hidden"
+              onChange={(e) => {
+                onFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
+            <label htmlFor={fileInputId} className="btn secondary file-label">
+              Add images
+            </label>
+
+            {selectedLayer ? (
+              <label className="check-row small-margin">
+                <input
+                  type="checkbox"
+                  checked={selectedLayer.lockAspect}
+                  onChange={(e) => setLockAspect(selectedLayer.id, e.target.checked)}
+                />
+                <span>Lock aspect ratio</span>
+              </label>
+            ) : null}
+
+            <ul className="layer-list">
+              {layers.map((l) => (
+                <li key={l.id}>
+                  <button
+                    type="button"
+                    className={`layer-item ${selectedId === l.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedId(l.id)
+                      const tid = tileIdForLayer(l, tiles)
+                      if (tid) setActiveTileId(tid)
+                    }}
+                  >
+                    <span className="layer-name">{l.name}</span>
+                  </button>
+                  <div className="layer-actions">
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="Move down"
+                      onClick={() => moveLayer(l.id, -1)}
+                    >
+                      ◀
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="Move up"
+                      onClick={() => moveLayer(l.id, 1)}
+                    >
+                      ▶
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn danger"
+                      title="Remove"
+                      onClick={() => removeLayer(l.id)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {!layers.length ? (
+              <p className="hint muted">No layers yet. Add images (they start in the active tile).</p>
+            ) : null}
+          </section>
+
+          <section className="panel">
             <h2>Tiles</h2>
             <p className="hint">
               Click a chip to set which frame new images land in. Drag layers freely across the row.
               Images snap to tile edges, centers, and slice guides.
             </p>
+            <button type="button" className="btn secondary tile-add-btn" onClick={addTile}>
+              + Add tile
+            </button>
             <div className="tile-chips" role="tablist" aria-label="Tiles">
               {tiles.map((t) => (
                 <button
@@ -491,9 +577,6 @@ export function StitcherEditor() {
                   {t.label}
                 </button>
               ))}
-              <button type="button" className="tile-chip add" onClick={addTile} title="Add tile">
-                + Add
-              </button>
             </div>
             {activeTile ? (
               <>
@@ -586,85 +669,6 @@ export function StitcherEditor() {
               {dim('Width', sliceW, (n) => updateActiveTile({ sliceW: n }))}
               {dim('Height', sliceH, (n) => updateActiveTile({ sliceH: n }))}
             </div>
-          </section>
-
-          <section className="panel">
-            <h2>Layers</h2>
-            <p className="hint muted layer-hint-top">
-              Shared across the row. Undo with Ctrl/Cmd+Z. Arrow keys nudge the selected layer.
-            </p>
-            <input
-              id={fileInputId}
-              type="file"
-              accept="image/*"
-              multiple
-              className="visually-hidden"
-              onChange={(e) => {
-                onFiles(e.target.files)
-                e.target.value = ''
-              }}
-            />
-            <label htmlFor={fileInputId} className="btn secondary file-label">
-              Add images
-            </label>
-
-            {selectedLayer ? (
-              <label className="check-row small-margin">
-                <input
-                  type="checkbox"
-                  checked={selectedLayer.lockAspect}
-                  onChange={(e) => setLockAspect(selectedLayer.id, e.target.checked)}
-                />
-                <span>Lock aspect ratio</span>
-              </label>
-            ) : null}
-
-            <ul className="layer-list">
-              {layers.map((l) => (
-                <li key={l.id}>
-                  <button
-                    type="button"
-                    className={`layer-item ${selectedId === l.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedId(l.id)
-                      const tid = tileIdForLayer(l, tiles)
-                      if (tid) setActiveTileId(tid)
-                    }}
-                  >
-                    <span className="layer-name">{l.name}</span>
-                  </button>
-                  <div className="layer-actions">
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="Move down"
-                      onClick={() => moveLayer(l.id, -1)}
-                    >
-                      ◀
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="Move up"
-                      onClick={() => moveLayer(l.id, 1)}
-                    >
-                      ▶
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn danger"
-                      title="Remove"
-                      onClick={() => removeLayer(l.id)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {!layers.length ? (
-              <p className="hint muted">No layers yet. Add images (they start in the active tile).</p>
-            ) : null}
           </section>
         </aside>
 
