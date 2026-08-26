@@ -68,6 +68,20 @@ const RESIZE_ANCHORS = [
   'bottom-right',
 ]
 
+const OVERFLOW_OPACITY = 0.32
+const MIN_PAD = 96
+
+function syncInFrameTwin(stage: Konva.Stage | null, layerId: string, node: Konva.Node) {
+  if (!stage) return
+  const twin = stage.findOne(`#layer-in-${layerId}`) as Konva.Image | undefined
+  if (!twin) return
+  twin.position(node.position())
+  twin.scale(node.scale())
+  twin.width(node.width())
+  twin.height(node.height())
+  twin.getLayer()?.batchDraw()
+}
+
 export function MultiTileComposer({
   tiles,
   layers,
@@ -91,6 +105,18 @@ export function MultiTileComposer({
 
   const totalW = useMemo(() => Math.max(1, totalTilesWidth(tiles)), [tiles])
 
+  // Viewport is locked to the tile grid + fixed padding — layers never shift the stage.
+  const worldBounds = useMemo(() => {
+    const padX = Math.max(MIN_PAD, Math.round(totalW * 0.08))
+    const padY = Math.max(MIN_PAD, Math.round(maxFrameH * 0.08))
+    return {
+      x: -padX,
+      y: -padY,
+      width: totalW + padX * 2,
+      height: maxFrameH + padY * 2,
+    }
+  }, [totalW, maxFrameH])
+
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -105,16 +131,27 @@ export function MultiTileComposer({
   }, [])
 
   const scale = useMemo(() => {
-    const padX = 32
-    const padY = 32
-    const sx = (viewport.w - padX) / Math.max(1, totalW)
-    const sy = (viewport.h - padY) / Math.max(1, maxFrameH)
-    return Math.min(sx, sy, 1)
-  }, [viewport, totalW, maxFrameH])
+    const padX = 16
+    const padY = 16
+    const sx = (viewport.w - padX) / Math.max(1, worldBounds.width)
+    const sy = (viewport.h - padY) / Math.max(1, worldBounds.height)
+    // Allow mild zoom-in when the frame is smaller than the viewport
+    return Math.min(sx, sy, 1.35)
+  }, [viewport, worldBounds])
 
-  const stageW = Math.max(1, Math.round(totalW * scale))
-  const stageH = Math.max(1, Math.round(maxFrameH * scale))
+  const stageW = Math.max(1, Math.round(worldBounds.width * scale))
+  const stageH = Math.max(1, Math.round(worldBounds.height * scale))
   const snapThreshold = 8 / Math.max(scale, 0.05)
+
+  const clipTiles = useCallback(
+    (ctx: Konva.Context) => {
+      ctx.beginPath()
+      for (const { tile, offsetX } of layouts) {
+        ctx.rect(offsetX, 0, tile.frameW, tile.frameH)
+      }
+    },
+    [layouts],
+  )
 
   const handleBackgroundPointer = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
@@ -178,9 +215,8 @@ export function MultiTileComposer({
   return (
     <div
       ref={containerRef}
+      className="composer-stage"
       style={{
-        flex: 1,
-        minHeight: 280,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -193,11 +229,21 @@ export function MultiTileComposer({
       <Stage width={stageW} height={stageH}>
         <Layer>
           <Group
+            x={-worldBounds.x * scale}
+            y={-worldBounds.y * scale}
             scaleX={scale}
             scaleY={scale}
             onMouseDown={handleBackgroundPointer}
             onTouchStart={handleBackgroundPointer}
           >
+            <Rect
+              x={worldBounds.x}
+              y={worldBounds.y}
+              width={worldBounds.width}
+              height={worldBounds.height}
+              fill="rgba(0,0,0,0.04)"
+              listening={false}
+            />
             {layouts.map(({ tile, offsetX }) => (
               <Group key={`${tile.id}-bg`} x={offsetX} y={0}>
                 <Rect
@@ -211,17 +257,20 @@ export function MultiTileComposer({
                 />
               </Group>
             ))}
-            <Group key="world-layers">
+
+            {/* Outside tiles: faded copy (interactive + transformer target) */}
+            <Group key="world-layers-overflow">
               {layers.map((layer) =>
                 layer.image ? (
                   <KonvaImage
-                    key={layer.id}
+                    key={`overflow-${layer.id}`}
                     id={`layer-${layer.id}`}
                     image={layer.image}
                     x={layer.x}
                     y={layer.y}
                     width={layer.width}
                     height={layer.height}
+                    opacity={OVERFLOW_OPACITY}
                     draggable
                     onMouseDown={(e) => {
                       e.cancelBubble = true
@@ -241,13 +290,18 @@ export function MultiTileComposer({
                     }}
                     onDragMove={(e) => {
                       snapNode(e.target)
+                      syncInFrameTwin(e.target.getStage(), layer.id, e.target)
                     }}
                     onDragEnd={(e) => {
                       finishImageDrag(layer.id, e.target as Konva.Image)
                     }}
+                    onTransform={(e) => {
+                      syncInFrameTwin(e.target.getStage(), layer.id, e.target)
+                    }}
                     onTransformEnd={(e) => {
                       const node = e.target
                       snapNode(node)
+                      syncInFrameTwin(node.getStage(), layer.id, node)
                       const sx = node.scaleX()
                       const sy = node.scaleY()
                       node.scaleX(1)
@@ -264,6 +318,25 @@ export function MultiTileComposer({
                 ) : null,
               )}
             </Group>
+
+            {/* Inside tiles: sharp full-opacity copy */}
+            <Group key="world-layers-inframe" clipFunc={clipTiles} listening={false}>
+              {layers.map((layer) =>
+                layer.image ? (
+                  <KonvaImage
+                    key={`in-${layer.id}`}
+                    id={`layer-in-${layer.id}`}
+                    image={layer.image}
+                    x={layer.x}
+                    y={layer.y}
+                    width={layer.width}
+                    height={layer.height}
+                    listening={false}
+                  />
+                ) : null,
+              )}
+            </Group>
+
             {layouts.map(({ tile, offsetX }) => {
               const { cols, rows } = gridCounts(
                 tile.frameW,
@@ -308,7 +381,7 @@ export function MultiTileComposer({
             {guides.v.map((x) => (
               <Line
                 key={`snap-v-${x}`}
-                points={[x, 0, x, maxFrameH]}
+                points={[x, Math.min(0, worldBounds.y), x, Math.max(maxFrameH, worldBounds.y + worldBounds.height)]}
                 stroke="#22c55e"
                 strokeWidth={2 / scale}
                 listening={false}
@@ -317,7 +390,7 @@ export function MultiTileComposer({
             {guides.h.map((y) => (
               <Line
                 key={`snap-h-${y}`}
-                points={[0, y, totalW, y]}
+                points={[Math.min(0, worldBounds.x), y, Math.max(totalW, worldBounds.x + worldBounds.width), y]}
                 stroke="#22c55e"
                 strokeWidth={2 / scale}
                 listening={false}
@@ -334,7 +407,6 @@ export function MultiTileComposer({
                 }
                 if (!lockAspect) return newBox
 
-                // Side anchors ignore Konva keepRatio — enforce aspect here.
                 const absOldW = Math.abs(oldBox.width)
                 const absOldH = Math.abs(oldBox.height)
                 if (absOldW < 1 || absOldH < 1) return newBox

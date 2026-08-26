@@ -682,7 +682,8 @@ export function StitcherEditor() {
             onLayerGeometry={onLayerGeometry}
           />
           <p className="footer-hint">
-            No gap between frames. Green lines appear when a layer snaps. Export all tiles delivers one{' '}
+            Parts of an image outside a tile stay visible but faded so you can still drag and resize
+            them. Green lines appear when a layer snaps. Export all tiles delivers one{' '}
             <code>stitcher-export.zip</code> with all slice PNGs at the root.
           </p>
         </main>
