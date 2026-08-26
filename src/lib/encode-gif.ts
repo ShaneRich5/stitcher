@@ -1,3 +1,4 @@
+import JSZip from 'jszip'
 import { GIFEncoder, applyPalette, quantize } from 'gifenc'
 
 export type GifFrameSource = {
@@ -6,14 +7,28 @@ export type GifFrameSource = {
   naturalHeight: number
 }
 
-export type EncodeGifOptions = {
+export type AnimationExportFormat =
+  | 'gif'
+  | 'mp4'
+  | 'webm'
+  | 'png-zip'
+  | 'jpeg-zip'
+
+export type EncodeAnimationOptions = {
   frames: GifFrameSource[]
-  /** Frame delay in milliseconds */
+  /** Frame delay in milliseconds (GIF / video) */
   delayMs: number
   /** Max output width/height; frames are fit inside this box */
   maxSize?: number
   /** Background fill behind letterboxed frames */
   background?: string
+  /** JPEG quality 0–1 when format is jpeg-zip */
+  jpegQuality?: number
+}
+
+export type AnimationExportResult = {
+  blob: Blob
+  filename: string
 }
 
 function fitContain(
@@ -33,14 +48,10 @@ function fitContain(
   }
 }
 
-/** Build an animated GIF blob from canvas-drawn frames (browser-only). */
-export async function encodeGifBlob(opts: EncodeGifOptions): Promise<Blob> {
-  const { frames, delayMs, background = '#000000' } = opts
-  if (!frames.length) {
-    throw new Error('Need at least one frame to encode a GIF')
-  }
-
-  const maxSize = opts.maxSize ?? 1080
+function prepareOutputSize(
+  frames: GifFrameSource[],
+  maxSize: number,
+): { outW: number; outH: number } {
   let outW = 0
   let outH = 0
   for (const f of frames) {
@@ -48,9 +59,52 @@ export async function encodeGifBlob(opts: EncodeGifOptions): Promise<Blob> {
     outH = Math.max(outH, f.naturalHeight)
   }
   const scale = Math.min(1, maxSize / Math.max(outW, outH, 1))
-  outW = Math.max(1, Math.round(outW * scale))
-  outH = Math.max(1, Math.round(outH * scale))
+  return {
+    outW: Math.max(1, Math.round(outW * scale)),
+    outH: Math.max(1, Math.round(outH * scale)),
+  }
+}
 
+function drawFrame(
+  ctx: CanvasRenderingContext2D,
+  frame: GifFrameSource,
+  outW: number,
+  outH: number,
+  background: string,
+) {
+  ctx.fillStyle = background
+  ctx.fillRect(0, 0, outW, outH)
+  const fit = fitContain(frame.naturalWidth, frame.naturalHeight, outW, outH)
+  ctx.drawImage(frame.image, fit.x, fit.y, fit.width, fit.height)
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality?: number,
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob)
+        else reject(new Error(`Could not encode ${type}`))
+      },
+      type,
+      quality,
+    )
+  })
+}
+
+/** Build an animated GIF blob from canvas-drawn frames (browser-only). */
+export async function encodeGifBlob(
+  opts: EncodeAnimationOptions,
+): Promise<Blob> {
+  const { frames, delayMs, background = '#000000' } = opts
+  if (!frames.length) {
+    throw new Error('Need at least one frame to encode a GIF')
+  }
+
+  const { outW, outH } = prepareOutputSize(frames, opts.maxSize ?? 1080)
   const canvas = document.createElement('canvas')
   canvas.width = outW
   canvas.height = outH
@@ -62,10 +116,7 @@ export async function encodeGifBlob(opts: EncodeGifOptions): Promise<Blob> {
 
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i]!
-    ctx.fillStyle = background
-    ctx.fillRect(0, 0, outW, outH)
-    const fit = fitContain(frame.naturalWidth, frame.naturalHeight, outW, outH)
-    ctx.drawImage(frame.image, fit.x, fit.y, fit.width, fit.height)
+    drawFrame(ctx, frame, outW, outH, background)
 
     const { data } = ctx.getImageData(0, 0, outW, outH)
     const palette = quantize(data, 256)
@@ -82,4 +133,73 @@ export async function encodeGifBlob(opts: EncodeGifOptions): Promise<Blob> {
   const copy = new Uint8Array(bytes.byteLength)
   copy.set(bytes)
   return new Blob([copy], { type: 'image/gif' })
+}
+
+async function encodeFramesZip(
+  opts: EncodeAnimationOptions,
+  imageType: 'image/png' | 'image/jpeg',
+  ext: 'png' | 'jpg',
+): Promise<Blob> {
+  const { frames, background = '#000000' } = opts
+  if (!frames.length) {
+    throw new Error('Need at least one frame to export')
+  }
+
+  const { outW, outH } = prepareOutputSize(frames, opts.maxSize ?? 1080)
+  const canvas = document.createElement('canvas')
+  canvas.width = outW
+  canvas.height = outH
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Could not get canvas 2D context')
+
+  const zip = new JSZip()
+  const quality = imageType === 'image/jpeg' ? (opts.jpegQuality ?? 0.92) : undefined
+  const pad = String(frames.length).length
+
+  for (let i = 0; i < frames.length; i++) {
+    drawFrame(ctx, frames[i]!, outW, outH, background)
+    const blob = await canvasToBlob(canvas, imageType, quality)
+    const n = String(i + 1).padStart(Math.max(2, pad), '0')
+    zip.file(`frame-${n}.${ext}`, blob)
+  }
+
+  return zip.generateAsync({ type: 'blob' })
+}
+
+/** Export frames as GIF, video, or a ZIP of stills. */
+export async function exportAnimation(
+  format: AnimationExportFormat,
+  opts: EncodeAnimationOptions,
+): Promise<AnimationExportResult> {
+  switch (format) {
+    case 'gif':
+      return {
+        blob: await encodeGifBlob(opts),
+        filename: 'stitcher.gif',
+      }
+    case 'mp4': {
+      const { encodeVideoBlob } = await import('./encode-video')
+      return {
+        blob: await encodeVideoBlob('mp4', opts),
+        filename: 'stitcher.mp4',
+      }
+    }
+    case 'webm': {
+      const { encodeVideoBlob } = await import('./encode-video')
+      return {
+        blob: await encodeVideoBlob('webm', opts),
+        filename: 'stitcher.webm',
+      }
+    }
+    case 'png-zip':
+      return {
+        blob: await encodeFramesZip(opts, 'image/png', 'png'),
+        filename: 'stitcher-frames-png.zip',
+      }
+    case 'jpeg-zip':
+      return {
+        blob: await encodeFramesZip(opts, 'image/jpeg', 'jpg'),
+        filename: 'stitcher-frames-jpg.zip',
+      }
+  }
 }

@@ -1,5 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { encodeGifBlob } from '../lib/encode-gif'
+import {
+  exportAnimation,
+  type AnimationExportFormat,
+} from '../lib/encode-gif'
 
 type GifFrame = {
   id: string
@@ -7,6 +10,38 @@ type GifFrame = {
   url: string
   image: HTMLImageElement
 }
+
+const FORMAT_OPTIONS: {
+  value: AnimationExportFormat
+  label: string
+  hint: string
+}[] = [
+  {
+    value: 'gif',
+    label: 'GIF',
+    hint: 'Animated .gif — works in Instagram posts',
+  },
+  {
+    value: 'mp4',
+    label: 'MP4',
+    hint: 'H.264 video — best for Instagram Reels / feed video',
+  },
+  {
+    value: 'webm',
+    label: 'WebM',
+    hint: 'Web video format; great for web, less common on Instagram',
+  },
+  {
+    value: 'png-zip',
+    label: 'PNG frames (ZIP)',
+    hint: 'Lossless stills, one file per frame',
+  },
+  {
+    value: 'jpeg-zip',
+    label: 'JPEG frames (ZIP)',
+    hint: 'Smaller stills for uploading separately',
+  },
+]
 
 function downloadBlob(blob: Blob, filename: string) {
   const a = document.createElement('a')
@@ -16,12 +51,34 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(a.href)
 }
 
+function exportButtonLabel(format: AnimationExportFormat, busy: boolean): string {
+  if (busy) return 'Encoding…'
+  switch (format) {
+    case 'gif':
+      return 'Export GIF'
+    case 'mp4':
+      return 'Export MP4'
+    case 'webm':
+      return 'Export WebM'
+    case 'png-zip':
+      return 'Export PNG ZIP'
+    case 'jpeg-zip':
+      return 'Export JPEG ZIP'
+  }
+}
+
+function usesFrameDelay(format: AnimationExportFormat): boolean {
+  return format === 'gif' || format === 'mp4' || format === 'webm'
+}
+
 export function GifMaker() {
   const fileInputId = useId()
+  const formatFieldId = useId()
   const urlsRef = useRef(new Set<string>())
   const [frames, setFrames] = useState<GifFrame[]>([])
   const [delayMs, setDelayMs] = useState(400)
   const [maxSize, setMaxSize] = useState(720)
+  const [format, setFormat] = useState<AnimationExportFormat>('gif')
   const [loopPreview, setLoopPreview] = useState(true)
   const [previewIndex, setPreviewIndex] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -110,12 +167,12 @@ export function GifMaker() {
     setPreviewIndex(0)
   }
 
-  const exportGif = async () => {
+  const runExport = async () => {
     if (!frames.length) return
     setBusy(true)
     setError(null)
     try {
-      const blob = await encodeGifBlob({
+      const result = await exportAnimation(format, {
         frames: frames.map((f) => ({
           image: f.image,
           naturalWidth: f.image.naturalWidth || f.image.width,
@@ -124,9 +181,9 @@ export function GifMaker() {
         delayMs,
         maxSize,
       })
-      downloadBlob(blob, 'stitcher.gif')
+      downloadBlob(result.blob, result.filename)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to encode GIF')
+      setError(e instanceof Error ? e.message : 'Failed to export')
     } finally {
       setBusy(false)
     }
@@ -141,18 +198,18 @@ export function GifMaker() {
         <div>
           <h1 className="tool-title">GIF</h1>
           <p className="tool-sub">
-            Drop a series of images, set the frame delay, preview the loop, then export one animated
-            GIF. Encoding runs entirely in the browser.
+            Drop a series of images, set the frame delay, preview the loop, then export as GIF or
+            video. Encoding runs entirely in the browser — MP4 is ideal for Instagram video.
           </p>
         </div>
         <div className="header-actions">
           <button
             type="button"
             className="btn primary"
-            onClick={exportGif}
+            onClick={runExport}
             disabled={!frames.length || busy}
           >
-            {busy ? 'Encoding…' : 'Export GIF'}
+            {exportButtonLabel(format, busy)}
           </button>
         </div>
       </header>
@@ -232,6 +289,30 @@ export function GifMaker() {
           </section>
 
           <section className="panel">
+            <h2>Export format</h2>
+            <div className="format-list" role="radiogroup" aria-labelledby={formatFieldId}>
+              <span id={formatFieldId} className="visually-hidden">
+                Export format
+              </span>
+              {FORMAT_OPTIONS.map((opt) => (
+                <label key={opt.value} className="format-option">
+                  <input
+                    type="radio"
+                    name="export-format"
+                    value={opt.value}
+                    checked={format === opt.value}
+                    onChange={() => setFormat(opt.value)}
+                  />
+                  <span className="format-option-text">
+                    <span className="format-option-label">{opt.label}</span>
+                    <span className="format-option-hint">{opt.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel">
             <h2>Timing</h2>
             <label className="field">
               <span>Delay per frame (ms)</span>
@@ -243,9 +324,14 @@ export function GifMaker() {
                 onChange={(e) =>
                   setDelayMs(Math.max(50, Math.floor(Number(e.target.value) || 50)))
                 }
+                disabled={!usesFrameDelay(format)}
               />
             </label>
-            <p className="hint muted">≈ {fps} fps</p>
+            <p className="hint muted">
+              {usesFrameDelay(format)
+                ? `≈ ${fps} fps`
+                : 'Delay applies to GIF and video exports'}
+            </p>
             <label className="field small-margin">
               <span>Max output size (px)</span>
               <input
