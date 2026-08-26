@@ -69,7 +69,8 @@ export async function encodeVideoBlob(
   format: VideoExportFormat,
   opts: EncodeAnimationOptions,
 ): Promise<Blob> {
-  const { frames, delayMs, background = '#000000' } = opts
+  const frames = opts.reverse ? [...opts.frames].reverse() : opts.frames
+  const { delayMs, background = '#000000' } = opts
   if (!frames.length) {
     throw new Error('Need at least one frame to encode video')
   }
@@ -84,8 +85,14 @@ export async function encodeVideoBlob(
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('Could not get canvas 2D context')
 
-  const durationSec = Math.max(0.05, delayMs / 1000)
-  const frameRate = 1 / durationSec
+  const baseDuration = Math.max(0.05, delayMs / 1000)
+  const holdExtra = Math.max(0, (opts.holdLastMs ?? 0) / 1000)
+  const lastDuration = baseDuration + holdExtra
+  const avgDuration =
+    frames.length === 1
+      ? lastDuration
+      : ((frames.length - 1) * baseDuration + lastDuration) / frames.length
+  const frameRate = 1 / Math.max(0.05, avgDuration)
 
   const outputFormat =
     format === 'mp4' ? new Mp4OutputFormat() : new WebMOutputFormat()
@@ -115,11 +122,14 @@ export async function encodeVideoBlob(
 
   await output.start()
 
+  let timestamp = 0
   for (let i = 0; i < frames.length; i++) {
     drawFrame(ctx, frames[i]!, outW, outH, background)
-    await canvasSource.add(i * durationSec, durationSec, {
+    const duration = i === frames.length - 1 ? lastDuration : baseDuration
+    await canvasSource.add(timestamp, duration, {
       keyFrame: i === 0 || i % Math.max(1, Math.round(frameRate * 2)) === 0,
     })
+    timestamp += duration
   }
 
   canvasSource.close()

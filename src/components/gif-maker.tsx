@@ -3,6 +3,7 @@ import {
   exportAnimation,
   type AnimationExportFormat,
 } from '../lib/encode-gif'
+import { OUTPUT_SIZE_PRESETS } from '../lib/platform-presets'
 
 type GifFrame = {
   id: string
@@ -89,6 +90,10 @@ export function GifMaker() {
   const [maxSize, setMaxSize] = useState(720)
   const [format, setFormat] = useState<AnimationExportFormat>('mp4')
   const [showMoreFormats, setShowMoreFormats] = useState(false)
+  const [holdLastMs, setHoldLastMs] = useState(0)
+  const [reverse, setReverse] = useState(false)
+  const [loopOnce, setLoopOnce] = useState(false)
+  const [background, setBackground] = useState('#000000')
   const [loopPreview, setLoopPreview] = useState(true)
   const [previewIndex, setPreviewIndex] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -114,11 +119,16 @@ export function GifMaker() {
 
   useEffect(() => {
     if (!loopPreview || frames.length < 2) return
-    const id = window.setInterval(() => {
-      setPreviewIndex((i) => (i + 1) % frames.length)
-    }, Math.max(50, delayMs))
-    return () => window.clearInterval(id)
-  }, [loopPreview, frames.length, delayMs])
+    const isPlaybackLast = reverse ? previewIndex === 0 : previewIndex === frames.length - 1
+    const delay = Math.max(50, delayMs + (isPlaybackLast ? holdLastMs : 0))
+    const id = window.setTimeout(() => {
+      setPreviewIndex((i) => {
+        if (reverse) return (i - 1 + frames.length) % frames.length
+        return (i + 1) % frames.length
+      })
+    }, delay)
+    return () => window.clearTimeout(id)
+  }, [loopPreview, frames.length, delayMs, holdLastMs, reverse, previewIndex])
 
   useEffect(() => {
     if (previewIndex >= frames.length) setPreviewIndex(0)
@@ -190,6 +200,10 @@ export function GifMaker() {
         })),
         delayMs,
         maxSize,
+        reverse,
+        gifRepeat: loopOnce ? -1 : 0,
+        holdLastMs,
+        background,
       })
       downloadBlob(result.blob, result.filename)
     } catch (e) {
@@ -375,6 +389,19 @@ export function GifMaker() {
                 : 'Delay applies to GIF and video exports'}
             </p>
             <label className="field small-margin">
+              <span>Hold last frame extra (ms)</span>
+              <input
+                type="number"
+                min={0}
+                step={50}
+                value={holdLastMs}
+                onChange={(e) =>
+                  setHoldLastMs(Math.max(0, Math.floor(Number(e.target.value) || 0)))
+                }
+                disabled={!usesFrameDelay(format)}
+              />
+            </label>
+            <label className="field small-margin">
               <span>Max output size (px)</span>
               <input
                 type="number"
@@ -385,6 +412,43 @@ export function GifMaker() {
                   setMaxSize(Math.max(64, Math.floor(Number(e.target.value) || 64)))
                 }
               />
+            </label>
+            <div className="preset-chips small-margin" role="group" aria-label="Output size presets">
+              {OUTPUT_SIZE_PRESETS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`tile-chip ${maxSize === n ? 'active' : ''}`}
+                  onClick={() => setMaxSize(n)}
+                >
+                  {n}px
+                </button>
+              ))}
+            </div>
+            <label className="field small-margin">
+              <span>Background</span>
+              <input
+                type="color"
+                value={background}
+                onChange={(e) => setBackground(e.target.value)}
+              />
+            </label>
+            <label className="check-row small-margin">
+              <input
+                type="checkbox"
+                checked={reverse}
+                onChange={(e) => setReverse(e.target.checked)}
+              />
+              <span>Reverse frames</span>
+            </label>
+            <label className="check-row small-margin">
+              <input
+                type="checkbox"
+                checked={loopOnce}
+                onChange={(e) => setLoopOnce(e.target.checked)}
+                disabled={format !== 'gif'}
+              />
+              <span>Play once (GIF only)</span>
             </label>
             <label className="check-row small-margin">
               <input
@@ -398,7 +462,7 @@ export function GifMaker() {
         </aside>
 
         <main className="main">
-          <div className="gif-preview">
+          <div className="gif-preview" style={{ background }}>
             {active ? (
               <img src={active.url} alt={active.name} className="gif-preview-img" />
             ) : (
@@ -409,6 +473,7 @@ export function GifMaker() {
             <p className="footer-hint">
               Frame {Math.min(previewIndex + 1, frames.length)} of {frames.length}
               {loopPreview ? ' · looping' : ''}
+              {reverse ? ' · reversed' : ''}
             </p>
           ) : null}
           {error ? <p className="error-text">{error}</p> : null}

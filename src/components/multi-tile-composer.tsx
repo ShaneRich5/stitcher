@@ -3,6 +3,7 @@ import { Group, Image as KonvaImage, Layer, Line, Rect, Stage, Transformer } fro
 import Konva from 'konva'
 import { gridCounts } from '../lib/export-tiles'
 import { tileIdForLayer } from '../lib/raster-world-tile'
+import { collectSnapTargets, snapBox, type SnapGuides } from '../lib/snap-guides'
 import { totalTilesWidth } from '../lib/tile-layout'
 import type { Layer as LayerModel, ProjectTile } from '../types'
 
@@ -37,6 +38,7 @@ export type MultiTileComposerProps = {
   tiles: ProjectTile[]
   layers: LayerModel[]
   selectedLayerId: string | null
+  lockAspect: boolean
   onSelectLayer: (layerId: string | null, tileId?: string | null) => void
   onLayerGeometry: (layerId: string, geo: Partial<LayerGeometry>) => void
 }
@@ -55,18 +57,32 @@ function buildLayouts(tiles: ProjectTile[]): TileLayout[] {
   })
 }
 
+const RESIZE_ANCHORS = [
+  'top-left',
+  'top-center',
+  'top-right',
+  'middle-right',
+  'middle-left',
+  'bottom-left',
+  'bottom-center',
+  'bottom-right',
+]
+
 export function MultiTileComposer({
   tiles,
   layers,
   selectedLayerId,
+  lockAspect,
   onSelectLayer,
   onLayerGeometry,
 }: MultiTileComposerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const [viewport, setViewport] = useState({ w: 800, h: 500 })
+  const [guides, setGuides] = useState<SnapGuides>({ v: [], h: [] })
 
   const layouts = useMemo(() => buildLayouts(tiles), [tiles])
+  const snapTargets = useMemo(() => collectSnapTargets(tiles), [tiles])
 
   const maxFrameH = useMemo(
     () => (tiles.length ? Math.max(...tiles.map((t) => t.frameH)) : 1),
@@ -98,6 +114,7 @@ export function MultiTileComposer({
 
   const stageW = Math.max(1, Math.round(totalW * scale))
   const stageH = Math.max(1, Math.round(maxFrameH * scale))
+  const snapThreshold = 8 / Math.max(scale, 0.05)
 
   const handleBackgroundPointer = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
@@ -122,7 +139,7 @@ export function MultiTileComposer({
       : undefined
     tr.nodes(selected ? [selected] : [])
     tr.getLayer()?.batchDraw()
-  }, [selectedLayerId, tiles, layers, scale, layouts])
+  }, [selectedLayerId, tiles, layers, scale, layouts, lockAspect])
 
   const finishImageDrag = useCallback(
     (layerId: string, node: Konva.Image) => {
@@ -136,8 +153,26 @@ export function MultiTileComposer({
         width: w,
         height: h,
       })
+      setGuides({ v: [], h: [] })
     },
     [onLayerGeometry],
+  )
+
+  const snapNode = useCallback(
+    (node: Konva.Node) => {
+      const w = Math.abs(node.width() * node.scaleX())
+      const h = Math.abs(node.height() * node.scaleY())
+      const snapped = snapBox(
+        { x: node.x(), y: node.y(), width: w, height: h },
+        snapTargets.xs,
+        snapTargets.ys,
+        snapThreshold,
+      )
+      node.x(snapped.x)
+      node.y(snapped.y)
+      setGuides(snapped.guides)
+    },
+    [snapTargets, snapThreshold],
   )
 
   return (
@@ -204,11 +239,15 @@ export function MultiTileComposer({
                       const tid = tileIdForLayer(layer, tiles)
                       onSelectLayer(layer.id, tid ?? undefined)
                     }}
+                    onDragMove={(e) => {
+                      snapNode(e.target)
+                    }}
                     onDragEnd={(e) => {
                       finishImageDrag(layer.id, e.target as Konva.Image)
                     }}
                     onTransformEnd={(e) => {
                       const node = e.target
+                      snapNode(node)
                       const sx = node.scaleX()
                       const sy = node.scaleY()
                       node.scaleX(1)
@@ -219,6 +258,7 @@ export function MultiTileComposer({
                         width: Math.max(8, node.width() * sx),
                         height: Math.max(8, node.height() * sy),
                       })
+                      setGuides({ v: [], h: [] })
                     }}
                   />
                 ) : null,
@@ -231,18 +271,18 @@ export function MultiTileComposer({
                 tile.sliceW,
                 tile.sliceH,
               )
-              const guides: { points: number[]; key: string }[] = []
+              const lines: { points: number[]; key: string }[] = []
               for (let c = 1; c < cols; c++) {
                 const x = c * tile.sliceW
-                guides.push({ key: `${tile.id}-v-${c}`, points: [x, 0, x, tile.frameH] })
+                lines.push({ key: `${tile.id}-v-${c}`, points: [x, 0, x, tile.frameH] })
               }
               for (let r = 1; r < rows; r++) {
                 const y = r * tile.sliceH
-                guides.push({ key: `${tile.id}-h-${r}`, points: [0, y, tile.frameW, y] })
+                lines.push({ key: `${tile.id}-h-${r}`, points: [0, y, tile.frameW, y] })
               }
               return (
                 <Group key={`${tile.id}-chrome`} x={offsetX} y={0}>
-                  {guides.map((g) => (
+                  {lines.map((g) => (
                     <Line
                       key={g.key}
                       points={g.points}
@@ -265,12 +305,63 @@ export function MultiTileComposer({
                 </Group>
               )
             })}
+            {guides.v.map((x) => (
+              <Line
+                key={`snap-v-${x}`}
+                points={[x, 0, x, maxFrameH]}
+                stroke="#22c55e"
+                strokeWidth={2 / scale}
+                listening={false}
+              />
+            ))}
+            {guides.h.map((y) => (
+              <Line
+                key={`snap-h-${y}`}
+                points={[0, y, totalW, y]}
+                stroke="#22c55e"
+                strokeWidth={2 / scale}
+                listening={false}
+              />
+            ))}
             <Transformer
               ref={trRef}
               rotateEnabled={false}
+              keepRatio={lockAspect}
+              enabledAnchors={RESIZE_ANCHORS}
               boundBoxFunc={(oldBox, newBox) => {
-                if (newBox.width < 12 || newBox.height < 12) return oldBox
-                return newBox
+                if (Math.abs(newBox.width) < 12 || Math.abs(newBox.height) < 12) {
+                  return oldBox
+                }
+                if (!lockAspect) return newBox
+
+                // Side anchors ignore Konva keepRatio — enforce aspect here.
+                const absOldW = Math.abs(oldBox.width)
+                const absOldH = Math.abs(oldBox.height)
+                if (absOldW < 1 || absOldH < 1) return newBox
+                const ratio = absOldW / absOldH
+
+                const dw = Math.abs(Math.abs(newBox.width) - absOldW)
+                const dh = Math.abs(Math.abs(newBox.height) - absOldH)
+
+                if (dw >= dh) {
+                  const signH = newBox.height < 0 ? -1 : 1
+                  const newAbsH = Math.abs(newBox.width) / ratio
+                  const centerY = oldBox.y + oldBox.height / 2
+                  return {
+                    ...newBox,
+                    height: newAbsH * signH,
+                    y: centerY - (newAbsH * signH) / 2,
+                  }
+                }
+
+                const signW = newBox.width < 0 ? -1 : 1
+                const newAbsW = Math.abs(newBox.height) * ratio
+                const centerX = oldBox.x + oldBox.width / 2
+                return {
+                  ...newBox,
+                  width: newAbsW * signW,
+                  x: centerX - (newAbsW * signW) / 2,
+                }
               }}
             />
           </Group>

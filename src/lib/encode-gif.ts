@@ -24,6 +24,12 @@ export type EncodeAnimationOptions = {
   background?: string
   /** JPEG quality 0–1 when format is jpeg-zip */
   jpegQuality?: number
+  /** Play frames in reverse order */
+  reverse?: boolean
+  /** GIF loop: -1 once, 0 forever */
+  gifRepeat?: number
+  /** Extra milliseconds added to the last playback frame */
+  holdLastMs?: number
 }
 
 export type AnimationExportResult = {
@@ -95,11 +101,22 @@ function canvasToBlob(
   })
 }
 
+function playbackFrames(opts: EncodeAnimationOptions): GifFrameSource[] {
+  return opts.reverse ? [...opts.frames].reverse() : opts.frames
+}
+
+function frameDelayMs(opts: EncodeAnimationOptions, index: number, total: number): number {
+  const base = Math.max(20, Math.round(opts.delayMs))
+  const extra = index === total - 1 ? Math.max(0, Math.round(opts.holdLastMs ?? 0)) : 0
+  return base + extra
+}
+
 /** Build an animated GIF blob from canvas-drawn frames (browser-only). */
 export async function encodeGifBlob(
   opts: EncodeAnimationOptions,
 ): Promise<Blob> {
-  const { frames, delayMs, background = '#000000' } = opts
+  const frames = playbackFrames(opts)
+  const { background = '#000000' } = opts
   if (!frames.length) {
     throw new Error('Need at least one frame to encode a GIF')
   }
@@ -112,7 +129,7 @@ export async function encodeGifBlob(
   if (!ctx) throw new Error('Could not get canvas 2D context')
 
   const gif = GIFEncoder()
-  const delay = Math.max(20, Math.round(delayMs))
+  const repeat = opts.gifRepeat ?? 0
 
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i]!
@@ -123,8 +140,8 @@ export async function encodeGifBlob(
     const index = applyPalette(data, palette)
     gif.writeFrame(index, outW, outH, {
       palette,
-      delay,
-      ...(i === 0 ? { repeat: 0 } : {}),
+      delay: frameDelayMs(opts, i, frames.length),
+      ...(i === 0 ? { repeat } : {}),
     })
   }
 
@@ -140,7 +157,8 @@ async function encodeFramesZip(
   imageType: 'image/png' | 'image/jpeg',
   ext: 'png' | 'jpg',
 ): Promise<Blob> {
-  const { frames, background = '#000000' } = opts
+  const frames = playbackFrames(opts)
+  const { background = '#000000' } = opts
   if (!frames.length) {
     throw new Error('Need at least one frame to export')
   }

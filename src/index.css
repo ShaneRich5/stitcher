@@ -370,10 +370,9 @@ p {
   color: var(--text-h);
 }
 
-.btn.primary {
-  background: var(--accent);
-  border-color: var(--accent-border);
-  color: #fff;
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn.primary:hover {
@@ -483,11 +482,21 @@ p {
   align-items: center;
 }
 
-.tile-chips {
+.preset-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.preset-chips.small-margin {
+  margin-bottom: 0;
+}
+
+.field input[type='color'] {
+  height: 36px;
+  padding: 4px;
+  cursor: pointer;
 }
 
 .tile-chip {
