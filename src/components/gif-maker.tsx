@@ -11,21 +11,28 @@ type GifFrame = {
   image: HTMLImageElement
 }
 
-const FORMAT_OPTIONS: {
+const PRIMARY_FORMAT_OPTIONS: {
   value: AnimationExportFormat
   label: string
   hint: string
 }[] = [
   {
-    value: 'gif',
-    label: 'GIF',
-    hint: 'Animated .gif — works in Instagram posts',
-  },
-  {
     value: 'mp4',
     label: 'MP4',
     hint: 'H.264 video — best for Instagram Reels / feed video',
   },
+  {
+    value: 'gif',
+    label: 'GIF',
+    hint: 'Animated .gif — works in Instagram posts',
+  },
+]
+
+const MORE_FORMAT_OPTIONS: {
+  value: AnimationExportFormat
+  label: string
+  hint: string
+}[] = [
   {
     value: 'webm',
     label: 'WebM',
@@ -42,6 +49,8 @@ const FORMAT_OPTIONS: {
     hint: 'Smaller stills for uploading separately',
   },
 ]
+
+const MORE_FORMAT_VALUES = new Set(MORE_FORMAT_OPTIONS.map((o) => o.value))
 
 function downloadBlob(blob: Blob, filename: string) {
   const a = document.createElement('a')
@@ -78,7 +87,8 @@ export function GifMaker() {
   const [frames, setFrames] = useState<GifFrame[]>([])
   const [delayMs, setDelayMs] = useState(400)
   const [maxSize, setMaxSize] = useState(720)
-  const [format, setFormat] = useState<AnimationExportFormat>('gif')
+  const [format, setFormat] = useState<AnimationExportFormat>('mp4')
+  const [showMoreFormats, setShowMoreFormats] = useState(false)
   const [loopPreview, setLoopPreview] = useState(true)
   const [previewIndex, setPreviewIndex] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -294,7 +304,7 @@ export function GifMaker() {
               <span id={formatFieldId} className="visually-hidden">
                 Export format
               </span>
-              {FORMAT_OPTIONS.map((opt) => (
+              {PRIMARY_FORMAT_OPTIONS.map((opt) => (
                 <label key={opt.value} className="format-option">
                   <input
                     type="radio"
@@ -309,7 +319,39 @@ export function GifMaker() {
                   </span>
                 </label>
               ))}
+              {showMoreFormats
+                ? MORE_FORMAT_OPTIONS.map((opt) => (
+                    <label key={opt.value} className="format-option">
+                      <input
+                        type="radio"
+                        name="export-format"
+                        value={opt.value}
+                        checked={format === opt.value}
+                        onChange={() => setFormat(opt.value)}
+                      />
+                      <span className="format-option-text">
+                        <span className="format-option-label">{opt.label}</span>
+                        <span className="format-option-hint">{opt.hint}</span>
+                      </span>
+                    </label>
+                  ))
+                : null}
             </div>
+            <button
+              type="button"
+              className="btn link-btn small-margin"
+              aria-expanded={showMoreFormats}
+              onClick={() => {
+                setShowMoreFormats((open) => {
+                  if (open && MORE_FORMAT_VALUES.has(format)) {
+                    setFormat('mp4')
+                  }
+                  return !open
+                })
+              }}
+            >
+              {showMoreFormats ? 'Show less' : 'Show more formats'}
+            </button>
           </section>
 
           <section className="panel">

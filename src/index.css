@@ -278,6 +278,20 @@ p {
   line-height: 1.35;
 }
 
+.btn.link-btn {
+  width: 100%;
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+  font-size: 14px;
+  padding: 8px 0;
+}
+
+.btn.link-btn:hover {
+  background: var(--accent-bg);
+  border-color: transparent;
+}
+
 .error-text {
   margin: 0;
   color: #c0392b;
