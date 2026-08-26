@@ -461,10 +461,20 @@ export function StitcherEditor() {
             </button>
           </div>
           <div className="header-actions-group header-actions-export">
-            <button type="button" className="btn secondary" onClick={exportThisTile}>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={exportThisTile}
+              disabled={!layers.length}
+            >
               Export this tile (PNGs)
             </button>
-            <button type="button" className="btn primary" onClick={exportAllTiles}>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={exportAllTiles}
+              disabled={!layers.length}
+            >
               Export all tiles (one ZIP)
             </button>
           </div>
