@@ -1,12 +1,16 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --text: #5f5a52;
+  --text-h: #1d1b18;
+  --bg: #f7f4ee;
+  --border: #e0dbcf;
+  --code-bg: #ece8de;
+  --accent: #5b36d6;
+  --accent-bg: rgba(91, 54, 214, 0.1);
+  --accent-border: rgba(91, 54, 214, 0.5);
+  --brand-1: #5b36d6;
+  --brand-2: #8f6df0;
+  --brand-3: #c2adfa;
+  --dock: #24211e;
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
@@ -15,7 +19,7 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
+  font: 16px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
   color: var(--text);
@@ -32,14 +36,17 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
+    --text: #a8a29a;
+    --text-h: #f3f0ea;
+    --bg: #1a1816;
+    --border: #35312d;
+    --code-bg: #24211e;
+    --accent: #a48cf5;
+    --accent-bg: rgba(164, 140, 245, 0.16);
+    --accent-border: rgba(164, 140, 245, 0.5);
+    --brand-1: #a48cf5;
+    --brand-2: #7c5ce0;
+    --brand-3: #5b36d6;
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
@@ -117,6 +124,10 @@ p {
 }
 
 .app-nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
   font: 600 18px/1.2 var(--heading);
   color: var(--text-h);
   text-decoration: none;
@@ -488,7 +499,10 @@ p {
 
 .composer-stage {
   flex: 1;
+  min-width: 0;
   min-height: calc(100svh - 240px);
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 .footer-hint {

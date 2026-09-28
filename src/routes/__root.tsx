@@ -1,17 +1,6 @@
-import { Outlet, createRootRoute } from '@tanstack/react-router'
-import { AppNav } from '../components/app-nav'
+import { createRootRoute } from '@tanstack/react-router'
+import { RootLayout } from '../components/root-layout'
 
 export const Route = createRootRoute({
   component: RootLayout,
 })
-
-function RootLayout() {
-  return (
-    <div className="app-shell">
-      <AppNav />
-      <div className="app-shell-body">
-        <Outlet />
-      </div>
-    </div>
-  )
-}

@@ -1,6 +1,4 @@
-import { tileOriginX } from './tile-layout'
-import { gridCounts } from './export-tiles'
-import type { ProjectTile } from '../types'
+import type { CarouselDoc } from '../types'
 
 export type SnapGuides = {
   v: number[]
@@ -11,24 +9,19 @@ function uniqueSorted(values: number[]): number[] {
   return [...new Set(values.map((v) => Math.round(v)))].sort((a, b) => a - b)
 }
 
-export function collectSnapTargets(tiles: ProjectTile[]): { xs: number[]; ys: number[] } {
-  const xs: number[] = [0]
-  const ys: number[] = [0]
-  let maxH = 0
+/** Slide edges, slide centers and grid-cut lines, in world pixels. */
+export function collectSnapTargets(doc: CarouselDoc): { xs: number[]; ys: number[] } {
+  const xs: number[] = []
+  const ys: number[] = [0, doc.slideH / 2, doc.slideH]
 
-  tiles.forEach((tile, i) => {
-    const ox = tileOriginX(tiles, i)
-    xs.push(ox, ox + tile.frameW, ox + tile.frameW / 2)
-    ys.push(tile.frameH, tile.frameH / 2)
-    maxH = Math.max(maxH, tile.frameH)
+  for (let i = 0; i <= doc.count; i++) xs.push(i * doc.slideW)
+  for (let i = 0; i < doc.count; i++) {
+    const ox = i * doc.slideW
+    xs.push(ox + doc.slideW / 2)
+    for (let c = 1; c < doc.gridCols; c++) xs.push(ox + (c * doc.slideW) / doc.gridCols)
+  }
+  for (let r = 1; r < doc.gridRows; r++) ys.push((r * doc.slideH) / doc.gridRows)
 
-    const { cols, rows } = gridCounts(tile.frameW, tile.frameH, tile.sliceW, tile.sliceH)
-    for (let c = 1; c < cols; c++) xs.push(ox + c * tile.sliceW)
-    for (let r = 1; r < rows; r++) ys.push(r * tile.sliceH)
-  })
-
-  xs.push(tiles.reduce((s, t) => s + t.frameW, 0))
-  ys.push(maxH)
   return { xs: uniqueSorted(xs), ys: uniqueSorted(ys) }
 }
 
