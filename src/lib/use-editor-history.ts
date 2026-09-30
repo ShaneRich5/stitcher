@@ -60,5 +60,13 @@ export function useEditorHistory<T>(initial: T | (() => T)) {
     apply(next)
   }, [apply])
 
-  return { present, commit, undo, redo, canUndo: flags.canUndo, canRedo: flags.canRedo }
+  /** Replace the document without recording an undo step, e.g. restoring an autosave. */
+  const reset = useCallback((next: T) => {
+    past.current = []
+    future.current = []
+    last.current = { at: 0 }
+    apply(next)
+  }, [apply])
+
+  return { present, commit, undo, redo, reset, canUndo: flags.canUndo, canRedo: flags.canRedo }
 }

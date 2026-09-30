@@ -1,12 +1,14 @@
+import { getImage } from './image-registry'
 import type { CarouselDoc, Layer } from '../types'
 
 export function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
-  if (!layer.image) return
+  const image = getImage(layer.imageId)?.image
+  if (!image) return
   ctx.save()
   ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2)
   if (layer.rotation) ctx.rotate((layer.rotation * Math.PI) / 180)
   if (layer.flipX) ctx.scale(-1, 1)
-  ctx.drawImage(layer.image, -layer.width / 2, -layer.height / 2, layer.width, layer.height)
+  ctx.drawImage(image, -layer.width / 2, -layer.height / 2, layer.width, layer.height)
   ctx.restore()
 }
 

@@ -21,6 +21,7 @@ import {
   type ImageFormat,
 } from '../lib/export-carousel'
 import { imageFiles, loadImageFile } from '../lib/load-image'
+import { flushSave, loadProject, scheduleSave } from '../lib/persist-project'
 import { useEditorHistory } from '../lib/use-editor-history'
 import { useMediaQuery } from '../lib/use-media-query'
 import { useSlideThumbnails } from '../lib/use-slide-thumbnails'
@@ -41,7 +42,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function StitcherEditor() {
-  const { present: doc, commit, undo, redo, canUndo, canRedo } = useEditorHistory<CarouselDoc>(createDoc)
+  const { present: doc, commit, undo, redo, reset, canUndo, canRedo } = useEditorHistory<CarouselDoc>(createDoc)
+  const [hydrated, setHydrated] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [activeSlideRaw, setActiveSlide] = useState(0)
   const [dockTab, setDockTab] = useState<'carousel' | 'image'>('carousel')
@@ -59,6 +61,33 @@ export function StitcherEditor() {
   const thumbs = useSlideThumbnails(doc, 96)
   const hasImages = doc.layers.length > 0
   const showImageTab = isPhone && selected !== null && dockTab === 'image'
+
+  // Restore the last autosaved project once, then let the autosave effect below take over. The
+  // restore bypasses undo history (`reset`) since it isn't a user edit.
+  useEffect(() => {
+    let cancelled = false
+    void loadProject().then((saved) => {
+      if (cancelled) return
+      if (saved) reset(saved)
+      setHydrated(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [reset])
+
+  useEffect(() => {
+    if (!hydrated) return
+    scheduleSave(doc)
+  }, [doc, hydrated])
+
+  useEffect(() => {
+    window.addEventListener('pagehide', flushSave)
+    return () => {
+      window.removeEventListener('pagehide', flushSave)
+      flushSave()
+    }
+  }, [])
 
   const say = (message: string) => {
     setNotice(message)
@@ -311,7 +340,7 @@ export function StitcherEditor() {
             }
           />
 
-          {!hasImages ? (
+          {!hasImages && hydrated ? (
             <div className="empty-state">
               <Icon name="scissors" size={28} />
               <h2>Split one photo across your carousel</h2>

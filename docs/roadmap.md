@@ -45,7 +45,7 @@ below link to their issue once one exists.
 | Video in carousel | ✅ (Premium) | ❌ (GIF tool only) |
 | Swipe preview | ✅ | ✅ |
 | Share to social | ✅ | Share sheet on phones (Save to Photos); ZIP download on desktop |
-| Save / reopen projects | ✅ | ❌ |
+| Save / reopen projects | ✅ | ✅ (autosaved locally; no explicit save/open UI yet) |
 | Platform presets | IG-centric | 5 formats: 4:5, 1:1, 3:4, 9:16, 1.91:1 |
 | GIF / MP4 from frames | ❌ | ✅ |
 | Profile-grid slicing | partial | ✅ (up to 4 × 4 per slide) |
@@ -61,15 +61,25 @@ Done with the split-first rebuild:
 - [x] Tile bugs retired: slides are now uniform, so per-tile widths and "Export this tile" no
   longer exist. Resizing no longer snaps, which removes the "snap moves the box" bug.
 
+Done:
+
+- [x] Carousel work now survives a reload. The carousel autosaves to IndexedDB (doc JSON in one
+  store, image blobs in another, pruned as layers are deleted) and restores on load, bypassing
+  undo history. ([#1](https://github.com/ShaneRich5/stitcher/issues/1))
+- [x] `Layer` now stores `imageId` + `naturalWidth`/`naturalHeight` instead of an
+  `HTMLImageElement`, with a small in-memory registry (`lib/image-registry.ts`) mapping image ID
+  to the decoded image. `CarouselDoc` is plain JSON now, and `carousel.ts` / `render-slide.ts` stay
+  DOM-free except for that one lookup. Done as groundwork for #1; the same change was needed for
+  the Phase 4 Expo port. ([#12](https://github.com/ShaneRich5/stitcher/issues/12))
+
 Open:
 
-- [ ] Carousel work is lost when switching tools or reloading. ([#1](https://github.com/ShaneRich5/stitcher/issues/1))
+- [ ] Autosave doesn't cover the GIF tool yet — its frames are still lost on reload or switching
+  tools. Same pattern as #1, scoped to `gif-maker.tsx`'s frame list.
 - [ ] Fix the ref cleanup lint warning in `gif-maker.tsx`. ([#2](https://github.com/ShaneRich5/stitcher/issues/2))
 - [ ] Bring `.cursorrules` in line with the current architecture. ([#3](https://github.com/ShaneRich5/stitcher/issues/3))
 - [ ] Vitest unit tests for the carousel maths, snapping and undo history. ([#4](https://github.com/ShaneRich5/stitcher/issues/4))
 - [ ] Merge the duplicated `fitContain` / `drawFrame` helpers in the encoders. ([#13](https://github.com/ShaneRich5/stitcher/issues/13))
-- [ ] Store image IDs on `Layer` instead of `HTMLImageElement`, so `CarouselDoc` serializes and
-  `src/lib` stays DOM-free. This is groundwork for Phase 3 saving and the Phase 4 Expo app. ([#12](https://github.com/ShaneRich5/stitcher/issues/12))
 
 ## Phase 1: core editor parity (makes a free SCRL substitute)
 
@@ -114,11 +124,12 @@ Open:
   already exists.
 - A **panorama scroll video** that pans across the whole carousel as one Reel. This is a strong
   differentiator and can reuse `encode-video.ts`.
-- **Save and reopen projects** locally (IndexedDB, with images stored as blobs) and export/import a
-  `.stitcher` file. Needs [#12](https://github.com/ShaneRich5/stitcher/issues/12) first.
-  *Note: `.cursorrules` currently says "no persistence layer". Local-only storage keeps the
-  no-backend principle, but that rule needs updating first
-  ([#3](https://github.com/ShaneRich5/stitcher/issues/3)).*
+- ~~**Save and reopen projects** locally (IndexedDB, with images stored as blobs)~~: done via
+  autosave ([#1](https://github.com/ShaneRich5/stitcher/issues/1)). Still to do: export/import a
+  `.stitcher` file, for backing up or moving a project between devices, and the same autosave for
+  the GIF tool's frames.
+  *Note: `.cursorrules` currently says "no persistence layer", which this autosave already
+  crosses; that rule needs updating ([#3](https://github.com/ShaneRich5/stitcher/issues/3)).*
 - A **PWA** so the app installs and works offline, which covers SCRL's mobile-app use case.
 
 ## Phase 4: native app (Expo)

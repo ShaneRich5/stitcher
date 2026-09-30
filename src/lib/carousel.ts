@@ -5,7 +5,7 @@ export const QUICK_COUNTS = [2, 3, 4, 5, 6, 8, 10]
 
 export type Box = { x: number; y: number; width: number; height: number }
 
-export type LoadedImage = { name: string; url: string; image: HTMLImageElement }
+export type LoadedImage = { id: string; name: string; naturalWidth: number; naturalHeight: number }
 
 export function createDoc(): CarouselDoc {
   return {
@@ -31,11 +31,8 @@ export function normalizeDegrees(deg: number): number {
   return ((((deg + 180) % 360) + 360) % 360) - 180
 }
 
-function naturalSize(image: HTMLImageElement | null): { w: number; h: number } {
-  return {
-    w: Math.max(1, image?.naturalWidth || image?.width || 1),
-    h: Math.max(1, image?.naturalHeight || image?.height || 1),
-  }
+function naturalSize(layer: Pick<Layer, 'naturalWidth' | 'naturalHeight'>): { w: number; h: number } {
+  return { w: Math.max(1, layer.naturalWidth || 1), h: Math.max(1, layer.naturalHeight || 1) }
 }
 
 function scaledBox(
@@ -62,9 +59,9 @@ function center(b: Box): { cx: number; cy: number } {
  */
 export function baseBox(
   doc: CarouselDoc,
-  layer: Pick<Layer, 'image' | 'fit' | 'x' | 'width'>,
+  layer: Pick<Layer, 'naturalWidth' | 'naturalHeight' | 'fit' | 'x' | 'width'>,
 ): Box {
-  const { w, h } = naturalSize(layer.image)
+  const { w, h } = naturalSize(layer)
   if (layer.fit === 'fill') return scaledBox(w, h, totalWidth(doc), doc.slideH, 'cover')
   if (layer.fit === 'fit') return scaledBox(w, h, totalWidth(doc), doc.slideH, 'contain')
   const i = slideIndexAt(doc, layer.x + layer.width / 2)
@@ -101,8 +98,9 @@ export function makeLayer(
   const draft: Layer = {
     id: crypto.randomUUID(),
     name: img.name,
-    url: img.url,
-    image: img.image,
+    imageId: img.id,
+    naturalWidth: img.naturalWidth,
+    naturalHeight: img.naturalHeight,
     x: slideIndex * doc.slideW,
     y: 0,
     width: doc.slideW,
@@ -118,7 +116,13 @@ export function makeLayer(
 /** Swap a layer's image, keeping its center and zoom. */
 export function replaceLayerImage(doc: CarouselDoc, layer: Layer, img: LoadedImage): Layer {
   const zoom = layerZoom(doc, layer)
-  const next = { ...layer, name: img.name, url: img.url, image: img.image }
+  const next = {
+    ...layer,
+    name: img.name,
+    imageId: img.id,
+    naturalWidth: img.naturalWidth,
+    naturalHeight: img.naturalHeight,
+  }
   const base = baseBox(doc, next)
   const width = base.width * zoom
   const height = base.height * zoom

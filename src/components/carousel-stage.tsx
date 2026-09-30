@@ -13,6 +13,7 @@ import {
 } from 'react-konva'
 import Konva from 'konva'
 import { normalizeDegrees, slideIndexAt, totalWidth } from '../lib/carousel'
+import { getImage } from '../lib/image-registry'
 import { collectSnapTargets, snapBox, type SnapGuides } from '../lib/snap-guides'
 import type { CarouselDoc, Layer } from '../types'
 
@@ -77,7 +78,7 @@ function syncTwin(stage: Konva.Stage | null, layerId: string, node: Konva.Node) 
 /** Konva props for a layer, rotating and flipping around its center. */
 function layerNodeProps(l: Layer) {
   return {
-    image: l.image ?? undefined,
+    image: getImage(l.imageId)?.image,
     x: l.x + l.width / 2,
     y: l.y + l.height / 2,
     width: l.width,
