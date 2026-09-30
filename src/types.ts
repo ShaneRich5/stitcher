@@ -7,8 +7,10 @@ export type FitMode = 'fill' | 'fit' | 'free'
 export type Layer = {
   id: string
   name: string
-  url: string
-  image: HTMLImageElement | null
+  /** Looks up the decoded image in `lib/image-registry`. Plain data, so the doc is JSON-safe. */
+  imageId: string
+  naturalWidth: number
+  naturalHeight: number
   /** Top-left of the unrotated box, in world pixels. */
   x: number
   y: number
