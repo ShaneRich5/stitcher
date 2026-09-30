@@ -21,77 +21,78 @@ What users complain about:
 **Stitcher's position:** match SCRL's core editing power, but keep it free, with no account and no
 watermark, running in any browser, and with every platform as a first-class preset.
 
+Open work is tracked as [GitHub issues](https://github.com/ShaneRich5/stitcher/issues). Items
+below link to their issue once one exists.
+
 ## Current status
 
 | Capability | SCRL | Stitcher |
 | --- | --- | --- |
 | Continuous canvas, content spans slides | ✅ | ✅ |
-| Split one photo across slides | ✅ | ✅ (2–10) |
-| Max slides | 20 | 10 via split; unlimited via "Add tile" |
-| Snapping guides | ✅ | ✅ |
+| Split one photo across slides | ✅ | ✅ (2–20) |
+| Max slides | 20 | 20 |
+| Snapping guides | ✅ | ✅ (while dragging) |
 | Undo/redo | ✅ | ✅ |
-| Layer reorder | drag & drop | ◀ ▶ buttons |
-| Rotate layers | ✅ | ❌ (`rotateEnabled={false}`) |
+| Layer reorder | drag & drop | forward / back buttons |
+| Rotate and flip layers | ✅ | ✅ |
 | Crop / mask image inside a frame | ✅ | ❌ |
 | Text layers + fonts | ✅ | ❌ |
 | Stickers / shapes | ✅ | ❌ |
-| Background color / gradient | ✅ (gradients are Premium) | ❌ (always white) |
+| Background color / gradient | ✅ (gradients are Premium) | Solid color or transparent; no gradients |
 | Collage grid templates | ✅ (mostly Premium) | ❌ |
 | Borders, spacing, corner radius | ✅ | ❌ |
 | Filters / adjustments | ✅ | ❌ |
 | Video in carousel | ✅ (Premium) | ❌ (GIF tool only) |
-| Swipe preview | ✅ | ❌ |
-| Share to social | ✅ | ❌ (download only) |
+| Swipe preview | ✅ | ✅ |
+| Share to social | ✅ | Share sheet on phones (Save to Photos); ZIP download on desktop |
 | Save / reopen projects | ✅ | ❌ |
-| Platform presets | IG-centric | IG only (4 presets) |
+| Platform presets | IG-centric | 5 formats: 4:5, 1:1, 3:4, 9:16, 1.91:1 |
 | GIF / MP4 from frames | ❌ | ✅ |
-| Profile-grid slicing (cell size) | partial | ✅ |
+| Profile-grid slicing | partial | ✅ (up to 4 × 4 per slide) |
 | Free, no account, no watermark | ❌ | ✅ |
 
 ## Phase 0: stabilize (before adding features)
 
-- [ ] **Fix lint** (7 errors). `npm run lint` currently fails:
-  - `stitcher-editor.tsx:85`: `stateRef.current = …` is assigned during render. Move it into
-    `useLayoutEffect`, or keep the snapshot in a reducer.
-  - `stitcher-editor.tsx:669–681`: `dim()` closures are flagged for reading refs. Turn `dim` into a
-    small `<DimField>` component.
-  - `gif-maker.tsx:134`: setState is called synchronously in an effect. Clamp `previewIndex` when
-    frames are removed instead.
-  - `routes/__root.tsx`: add `allowExportNames: ['Route']` to `react-refresh/only-export-components`.
-- [ ] **Bug: resizing a tile's width doesn't shift the layers to its right.** Layers use world
-  coordinates, so changing the width of tile N moves the frames of tiles N+1… under their content.
-  Shift layers by the width change, the same way `removeTile` does.
-- [ ] **Bug: snapping after a resize moves the box.** `onTransformEnd` calls `snapNode`, which
-  translates the whole box instead of adjusting the edge being dragged.
-- [ ] **History flooding**: each keystroke in the tile name and each arrow-key nudge becomes its
-  own undo step. Coalesce them (debounce, or commit on blur or key-up).
-- [ ] "Export this tile" triggers several downloads in a row, and browsers often block that. Zip it,
-  or send one file per tile when the tile has a single cell.
-- [ ] Merge duplicated helpers (`downloadBlob`, `fitContain`, `drawFrame`) into `src/lib`.
-- [ ] Add Vitest unit tests for the pure maths: `snapBox`, `rasterWorldLayersToTileCanvas`
-  crop maths, `gridCounts` and `tileOriginX`.
-- [ ] Keep `src/lib` DOM-free where possible. This is groundwork for the Expo app in Phase 4.
+Done with the split-first rebuild:
+
+- [x] Lint errors fixed.
+- [x] Undo coalescing for arrow nudges, sliders and drags (`coalesce` keys in `useEditorHistory`).
+- [x] `downloadBlob` moved into `src/lib/download.ts`.
+- [x] Tile bugs retired: slides are now uniform, so per-tile widths and "Export this tile" no
+  longer exist. Resizing no longer snaps, which removes the "snap moves the box" bug.
+
+Open:
+
+- [ ] Carousel work is lost when switching tools or reloading. ([#1](https://github.com/ShaneRich5/stitcher/issues/1))
+- [ ] Fix the ref cleanup lint warning in `gif-maker.tsx`. ([#2](https://github.com/ShaneRich5/stitcher/issues/2))
+- [ ] Bring `.cursorrules` in line with the current architecture. ([#3](https://github.com/ShaneRich5/stitcher/issues/3))
+- [ ] Vitest unit tests for the carousel maths, snapping and undo history. ([#4](https://github.com/ShaneRich5/stitcher/issues/4))
+- [ ] Merge the duplicated `fitContain` / `drawFrame` helpers in the encoders. ([#13](https://github.com/ShaneRich5/stitcher/issues/13))
+- [ ] Store image IDs on `Layer` instead of `HTMLImageElement`, so `CarouselDoc` serializes and
+  `src/lib` stays DOM-free. This is groundwork for Phase 3 saving and the Phase 4 Expo app. ([#12](https://github.com/ShaneRich5/stitcher/issues/12))
 
 ## Phase 1: core editor parity (makes a free SCRL substitute)
 
-1. **Background**: a solid color or gradient per project, and a transparent PNG option. This is
-   free here, where SCRL paywalls gradients.
+1. **Background**: solid color and transparent are done. Gradients are still to do, and are free
+   here where SCRL paywalls them.
 2. **Text layers**: Konva `Text` with Google Fonts, size, color, alignment, line height, stroke and
    shadow. Needs a `type` discriminator on `Layer`.
-3. **Rotation and flip**: enable the Transformer's rotate handle and include rotation in the export
-   raster step (switch that step to drawing with `ctx.rotate`, or rasterize the Konva stage at
-   `pixelRatio` for each tile).
+3. ~~**Rotation and flip**~~: done, including export.
 4. **Crop / mask**: double-click an image to pan and zoom it inside its own bounds (SCRL "frames").
 5. **Better layer panel**: thumbnails, drag-and-drop reorder, duplicate, hide and lock.
-6. **Tile management**: reorder tiles, insert a tile between two others, duplicate a tile, and
-   raise split to 20.
-7. **Faster input**: drag and drop files onto the canvas, paste from the clipboard, pinch or wheel
-   to zoom, space-drag to pan, and a "fit all" button.
-8. **Swipe preview**: a phone mockup that shows slides one at a time with swipe/arrow navigation.
-9. **More presets**: TikTok photo mode (1080×1920), LinkedIn doc (1080×1350), Pinterest
-   (1000×1500), X (1600×900) and Threads, grouped by platform.
-10. **Export options**: JPEG with a quality slider (Instagram re-compresses PNG anyway), plus the
-    Web Share API on mobile for "share to Instagram".
+6. **Slide management**: up to 20 slides and add/remove from the slide strip are done. Still to
+   do: insert a slide between two others, and duplicate a slide.
+7. **Faster input**: drag and drop and clipboard paste are done. Still to do:
+   - canvas zoom and pan, with a "Fit" button ([#8](https://github.com/ShaneRich5/stitcher/issues/8))
+   - selecting layers from the keyboard ([#9](https://github.com/ShaneRich5/stitcher/issues/9))
+   - HEIC photos and files with no MIME type ([#5](https://github.com/ShaneRich5/stitcher/issues/5))
+8. **Previews**: the swipe preview is done. Next is an Instagram profile-grid crop overlay, since
+   the grid shows a 3:4 crop of the first slide ([#10](https://github.com/ShaneRich5/stitcher/issues/10)).
+9. **More presets**: 9:16 (TikTok photo mode, Stories) is done. Add Pinterest 2:3 and X/YouTube
+   16:9 ([#7](https://github.com/ShaneRich5/stitcher/issues/7)). LinkedIn carousels are PDF
+   documents, so they need a PDF export rather than a preset.
+10. **Export options**: JPEG export and the Web Share API on phones are done. Add a JPEG quality
+    slider ([#6](https://github.com/ShaneRich5/stitcher/issues/6)).
 
 ## Phase 2: collage and style
 
@@ -106,13 +107,18 @@ watermark, running in any browser, and with every platform as a first-class pres
 
 ## Phase 3: motion and persistence
 
+- **Send carousel slides to the GIF tool** as frames, for a quick animated version
+  ([#11](https://github.com/ShaneRich5/stitcher/issues/11)). This is the cheap first step toward the
+  panorama video below.
 - **Video layers** in carousel tiles, exported per slide as MP4 using the Mediabunny pipeline that
   already exists.
 - A **panorama scroll video** that pans across the whole carousel as one Reel. This is a strong
   differentiator and can reuse `encode-video.ts`.
 - **Save and reopen projects** locally (IndexedDB, with images stored as blobs) and export/import a
-  `.stitcher` file. *Note: `.cursorrules` currently says "no persistence layer". Local-only storage
-  keeps the no-backend principle, but that rule needs updating first.*
+  `.stitcher` file. Needs [#12](https://github.com/ShaneRich5/stitcher/issues/12) first.
+  *Note: `.cursorrules` currently says "no persistence layer". Local-only storage keeps the
+  no-backend principle, but that rule needs updating first
+  ([#3](https://github.com/ShaneRich5/stitcher/issues/3)).*
 - A **PWA** so the app installs and works offline, which covers SCRL's mobile-app use case.
 
 ## Phase 4: native app (Expo)
@@ -125,9 +131,9 @@ into Instagram, and picking photos from the full library.
 
 | Layer | Web today | Expo equivalent |
 | --- | --- | --- |
-| Geometry (tiles, snapping, split, grid, crop maths) | `src/lib/*` | **Reusable as is** if kept DOM-free |
+| Geometry (slides, snapping, split, grid, crop maths) | `src/lib/*` | **Reusable as is** if kept DOM-free |
 | Canvas + gestures | Konva / react-konva (DOM only) | `@shopify/react-native-skia` + `react-native-gesture-handler` + Reanimated |
-| Slice export | Canvas `drawImage` + `toBlob` | Skia offscreen surface → `makeImageSnapshot()` → PNG/JPEG |
+| Slide export | Canvas `drawImage` + `toBlob` | Skia offscreen surface → `makeImageSnapshot()` → PNG/JPEG |
 | ZIP | JSZip | JSZip (pure JS), though mobile usually wants a camera-roll save instead |
 | GIF | gifenc | gifenc (pure JS, fed by Skia `readPixels`) |
 | MP4/WebM | Mediabunny (needs WebCodecs) | Needs a native encoder module, since WebCodecs isn't available |
@@ -136,12 +142,12 @@ into Instagram, and picking photos from the full library.
 
 **Groundwork to do now so the port stays cheap:**
 
-- Keep `src/lib` **free of DOM and React**. Move the parts that touch `HTMLImageElement` and
-  `document.createElement('canvas')` behind a small rendering interface. Leave the pure maths
-  (`rasterWorldLayersToTileCanvas`'s source-rect calculation, `snapBox`, `gridCounts`) in plain
-  functions.
+- Keep `src/lib` **free of DOM and React**. `render-slide.ts`, `export-carousel.ts` and
+  `load-image.ts` touch `HTMLImageElement` and `document.createElement('canvas')`; put those behind
+  a small rendering interface. Leave the pure maths (`carousel.ts`, `snapBox`) in plain functions.
 - Change `Layer` to store `{ imageId, naturalWidth, naturalHeight }` instead of an
-  `HTMLImageElement`. Each platform keeps its own map from image ID to decoded image.
+  `HTMLImageElement` ([#12](https://github.com/ShaneRich5/stitcher/issues/12)). Each platform keeps
+  its own map from image ID to decoded image.
 - Settle on a serializable project format (JSON + image blobs) early. The same format then serves
   Phase 3 saving and a future web↔mobile handoff.
 - When the port starts, move to a monorepo: `packages/core` (pure TS), `apps/web` (Vite),
