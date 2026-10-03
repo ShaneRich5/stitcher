@@ -19,24 +19,41 @@ src/
     slide-strip.tsx           Thumbnails of the slides as posted
     swipe-preview.tsx         Feed-style swipe preview dialog
     icons.tsx, app-nav.tsx    Shared UI
-    gif-maker.tsx             GIF/video tool
+    gif-maker.tsx             GIF tool: state, playback, keyboard, drag/drop, paste, export
+    gif-controls.tsx          Whole-animation controls (speed, size, format, style)
+    frame-strip.tsx           Frame thumbnails; drag to reorder
   lib/
     carousel.ts               Doc helpers: makeLayer, zoom, relayout, slide add/remove
+    gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay
+    image-registry.ts         imageId -> decoded image, object URL and source blob
+    idb.ts, persist-project.ts  IndexedDB autosave of the carousel
     snap-guides.ts            Snap targets and snapBox()
     render-slide.ts           Canvas render of one slide from source pixels
     export-carousel.ts        Slide/grid files, ZIP, Web Share
     use-editor-history.ts     Immutable undo/redo with coalescing
     use-slide-thumbnails.ts   Debounced thumbnails
     encode-gif.ts, encode-video.ts   GIF and MP4/WebM encoders
-  types.ts                    Layer, CarouselDoc, FitMode
+  types.ts                    Layer, CarouselDoc, FitMode, GifFrame
 ```
+
+Both tools share one shell: `AppNav` actions, a `.split-bar` of controls, a `.workspace`, a
+thumbnail strip, and a phone `.dock` with tabs. The styles live in `editor.css`.
 
 ## Data model
 
 ```ts
 CarouselDoc { slideW, slideH, count, gridCols, gridRows, background: string | null, layers }
-Layer { id, name, url, image, x, y, width, height, rotation, flipX, fit, lockAspect }
+Layer { id, name, imageId, naturalWidth, naturalHeight,
+        x, y, width, height, rotation, flipX, fit, lockAspect }
+
+GifDoc { frames, delayMs, holdLastMs, maxSize, background, reverse, loopOnce, format }
+GifFrame { id, name, imageId, naturalWidth, naturalHeight }
 ```
+
+- Both docs hold **plain data only**. Images are referenced by `imageId`; `lib/image-registry.ts`
+  maps that id to the decoded `HTMLImageElement`, its object URL and the source blob. That keeps
+  the docs JSON-serializable (so the carousel can autosave) and keeps the geometry in `lib/`
+  free of the DOM.
 
 - All slides share one size. The slides sit edge to edge in one world space, so a layer's `x`
   can cover several slides.
@@ -56,8 +73,15 @@ Layer { id, name, url, image, x, y, width, height, rotation, flipX, fit, lockAsp
 
 ## State
 
-All editing goes through `commit` in `useEditorHistory`. Rapid edits (sliders, arrow nudges,
+Carousel editing goes through `commit` in `useEditorHistory`. Rapid edits (sliders, arrow nudges,
 drags) pass a `coalesce` key so they form one undo step (1 second window, 80 steps).
+
+The carousel also autosaves. `persist-project.ts` writes the doc to IndexedDB about a second after
+edits stop (and on `pagehide`), with each image's blob in a second store, keyed by `imageId`.
+On load it reads the doc back, decodes the blobs into the registry, and restores through `reset`,
+which replaces the document without adding an undo step. Undo history itself isn't persisted, so
+images the current doc no longer uses are pruned on the next save. The GIF tool doesn't autosave
+yet; its frames live in component state.
 
 ## Conventions
 

@@ -638,6 +638,156 @@ select:focus-visible {
   font-size: 14px;
 }
 
+/* ---------- gif tool ---------- */
+.control-readout,
+.nav-readout {
+  font: 12px var(--mono);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.nav-readout {
+  margin-right: 4px;
+}
+
+@media (max-width: 720px) {
+  .nav-readout {
+    display: none;
+  }
+}
+
+.gif-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.gif-stage-img {
+  max-width: calc(100% - 48px);
+  /* Leaves room for the floating playback bar at the bottom of the workspace. */
+  max-height: calc(100% - 96px);
+  object-fit: contain;
+  display: block;
+}
+
+.playback-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.playback-count {
+  font: 12px var(--mono);
+  color: var(--text);
+  padding: 0 8px;
+  min-width: 56px;
+  text-align: center;
+}
+
+.play-btn {
+  color: var(--accent);
+}
+
+/* The strip doubles as the timeline, so frames read left to right in playback order. */
+.frame-item {
+  cursor: grab;
+}
+
+.frame-item:active {
+  cursor: grabbing;
+}
+
+.frame-item.drop-target .slide-thumb {
+  border-color: var(--accent-border);
+  border-style: dashed;
+}
+
+.frame-item .slide-thumb-frame {
+  width: 64px;
+}
+
+.frame-item .slide-thumb-frame img {
+  object-fit: contain;
+}
+
+.frame-thumb-actions {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  display: flex;
+  gap: 2px;
+}
+
+/* Two buttons over a 64px thumbnail, so they run a little smaller than the carousel's one. */
+.frame-thumb-actions .slide-thumb-remove {
+  position: static;
+  width: 18px;
+  height: 18px;
+}
+
+.frame-item:hover .frame-thumb-actions .slide-thumb-remove,
+.frame-thumb-actions .slide-thumb-remove:focus-visible {
+  display: inline-flex;
+}
+
+.frame-add {
+  width: 64px;
+}
+
+/* The phone dock stacks the same control groups instead of hiding them behind a popover. */
+.carousel-controls.is-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.carousel-controls.is-stacked .control-group {
+  flex-wrap: wrap;
+}
+
+.carousel-controls.is-stacked .control-actions {
+  margin-left: 0;
+}
+
+.control-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-fields .range-field input {
+  flex: 1;
+  width: auto;
+}
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.check-line input {
+  accent-color: var(--accent);
+}
+
+.check-line:has(input:disabled) {
+  opacity: 0.5;
+}
+
 /* ---------- swipe preview ---------- */
 .preview-backdrop {
   position: fixed;

@@ -21,6 +21,10 @@ export type IconName =
   | 'lock'
   | 'unlock'
   | 'replace'
+  | 'play'
+  | 'pause'
+  | 'film'
+  | 'copy'
 
 const PATHS: Record<IconName, ReactNode> = {
   undo: (
@@ -126,6 +130,26 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <rect x="5" y="11" width="14" height="10" rx="2" />
       <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+    </>
+  ),
+  play: <path d="M7 4.5v15l12-7.5-12-7.5Z" />,
+  pause: (
+    <>
+      <path d="M9 4v16" />
+      <path d="M15 4v16" />
+    </>
+  ),
+  film: (
+    <>
+      <rect x="2.5" y="5" width="19" height="14" rx="2" />
+      <path d="M7 5v14M17 5v14" />
+      <path d="M2.5 12h19" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
     </>
   ),
 }

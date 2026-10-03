@@ -24,6 +24,16 @@ export type Layer = {
   lockAspect: boolean
 }
 
+/** One still in the GIF tool's sequence. Like `Layer`, it holds plain data only. */
+export type GifFrame = {
+  id: string
+  name: string
+  /** Looks up the decoded image in `lib/image-registry`. */
+  imageId: string
+  naturalWidth: number
+  naturalHeight: number
+}
+
 /** A row of identical slides. Layers live in world space so one image can span several slides. */
 export type CarouselDoc = {
   slideW: number

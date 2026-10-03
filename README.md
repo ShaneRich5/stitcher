@@ -26,17 +26,25 @@ Everything runs on your device. There's no account, no upload, no watermark and 
 - **Grid cut**: slice each slide into up to 4 x 4 cells (for profile-grid posts).
 - **Swipe preview** shows the slides the way a feed pages through them.
 - Undo/redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y).
+- **Autosaves** to your browser, so a reload or a closed tab doesn't lose your work. Nothing
+  leaves your device.
 - **Export** PNG or JPEG as one ZIP, or a single file for one slide. On phones the Save button opens
   the share sheet (Save to Photos).
 - Phone layout uses a bottom dock with Carousel and Image tabs.
 
 ### GIF (`/gif`)
 
-- Add frames, reorder them and preview the loop live.
-- Export as **MP4** (H.264) or **GIF**. WebM, PNG-frame ZIP and JPEG-frame ZIP are under
-  "Show more formats".
-- Settings for frame delay, holding the last frame, max output size (1080/720/480 presets),
-  background color, reversed playback and play-once (GIF only).
+- **Add frames**: drop, paste or pick several. They play in the order shown in the strip.
+- **Frame strip** with thumbnails: drag to reorder, duplicate or remove a frame, click one to
+  jump to it.
+- **Live preview** with play/pause and frame stepping. Space plays and pauses, arrow keys step,
+  Delete removes the frame on screen.
+- **Speed** as frame-rate presets (1 to 24 fps) with a precise frame-delay slider under "Style",
+  plus an extra hold on the last frame.
+- **Export** as **MP4** (H.264) or **GIF**; WebM, PNG-frame ZIP and JPEG-frame ZIP are under
+  "Style → More formats". Output size presets of 1080/720/480, or any size up to 1920.
+- Background color, reversed playback and play-once (GIF only).
+- Phone layout uses the same bottom dock, with Loop and Export tabs.
 
 ---
 

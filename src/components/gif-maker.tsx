@@ -1,513 +1,344 @@
-import { useEffect, useId, useRef, useState } from "react";
-import { exportAnimation, type AnimationExportFormat } from "../lib/encode-gif";
-import { downloadBlob } from "../lib/download";
-import { OUTPUT_SIZE_PRESETS } from "../lib/platform-presets";
-import { AppNav } from "./app-nav";
+import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'react'
+import { downloadBlob } from '../lib/download'
+import { exportAnimation, type AnimationExportFormat } from '../lib/encode-gif'
+import {
+  createGifDoc,
+  duplicateFrame,
+  loopDurationMs,
+  removeFrame,
+  reorderFrames,
+  type GifDoc,
+} from '../lib/gif-doc'
+import { getImage } from '../lib/image-registry'
+import { imageFiles, loadImageFile } from '../lib/load-image'
+import { useMediaQuery } from '../lib/use-media-query'
+import type { GifFrame } from '../types'
+import { AppNav } from './app-nav'
+import { FrameStrip } from './frame-strip'
+import { GifControls } from './gif-controls'
+import { Icon } from './icons'
 
-type GifFrame = {
-  id: string;
-  name: string;
-  url: string;
-  image: HTMLImageElement;
-};
-
-const PRIMARY_FORMAT_OPTIONS: {
-  value: AnimationExportFormat;
-  label: string;
-  hint: string;
-}[] = [
-  {
-    value: "mp4",
-    label: "MP4",
-    hint: "H.264 video — best for Instagram Reels / feed video",
-  },
-  {
-    value: "gif",
-    label: "GIF",
-    hint: "Animated .gif — works in Instagram posts",
-  },
-];
-
-const MORE_FORMAT_OPTIONS: {
-  value: AnimationExportFormat;
-  label: string;
-  hint: string;
-}[] = [
-  {
-    value: "webm",
-    label: "WebM",
-    hint: "Web video format; great for web, less common on Instagram",
-  },
-  {
-    value: "png-zip",
-    label: "PNG frames (ZIP)",
-    hint: "Lossless stills, one file per frame",
-  },
-  {
-    value: "jpeg-zip",
-    label: "JPEG frames (ZIP)",
-    hint: "Smaller stills for uploading separately",
-  },
-];
-
-const MORE_FORMAT_VALUES = new Set(MORE_FORMAT_OPTIONS.map((o) => o.value));
-
-function exportButtonLabel(
-  format: AnimationExportFormat,
-  busy: boolean,
-): string {
-  if (busy) return "Encoding…";
+function exportLabel(format: AnimationExportFormat): string {
   switch (format) {
-    case "gif":
-      return "Export GIF";
-    case "mp4":
-      return "Export MP4";
-    case "webm":
-      return "Export WebM";
-    case "png-zip":
-      return "Export PNG ZIP";
-    case "jpeg-zip":
-      return "Export JPEG ZIP";
+    case 'gif':
+      return 'Export GIF'
+    case 'mp4':
+      return 'Export MP4'
+    case 'webm':
+      return 'Export WebM'
+    case 'png-zip':
+      return 'Export PNG ZIP'
+    case 'jpeg-zip':
+      return 'Export JPEG ZIP'
   }
 }
 
-function usesFrameDelay(format: AnimationExportFormat): boolean {
-  return format === "gif" || format === "mp4" || format === "webm";
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable
 }
 
 export function GifMaker() {
-  const fileInputId = useId();
-  const formatFieldId = useId();
-  const urlsRef = useRef(new Set<string>());
-  const [frames, setFrames] = useState<GifFrame[]>([]);
-  const [delayMs, setDelayMs] = useState(400);
-  const [maxSize, setMaxSize] = useState(720);
-  const [format, setFormat] = useState<AnimationExportFormat>("mp4");
-  const [showMoreFormats, setShowMoreFormats] = useState(false);
-  const [holdLastMs, setHoldLastMs] = useState(0);
-  const [reverse, setReverse] = useState(false);
-  const [loopOnce, setLoopOnce] = useState(false);
-  const [background, setBackground] = useState("#000000");
-  const [loopPreview, setLoopPreview] = useState(true);
-  const [previewIndex, setPreviewIndex] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [doc, setDoc] = useState<GifDoc>(createGifDoc)
+  const [frameIndex, setFrameIndex] = useState(0)
+  const [playing, setPlaying] = useState(true)
+  const [dockTab, setDockTab] = useState<'loop' | 'export'>('loop')
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const noticeTimer = useRef<number | undefined>(undefined)
+  const isPhone = useMediaQuery('(max-width: 820px)')
 
-  const trackUrl = (url: string) => {
-    urlsRef.current.add(url);
-  };
+  const count = doc.frames.length
+  const activeIndex = count ? Math.min(frameIndex, count - 1) : 0
+  const active: GifFrame | null = doc.frames[activeIndex] ?? null
+  const hasFrames = count > 0
 
-  const revokeUrl = (url: string) => {
-    if (urlsRef.current.has(url)) {
-      URL.revokeObjectURL(url);
-      urlsRef.current.delete(url);
-    }
-  };
+  const say = (message: string) => {
+    setNotice(message)
+    window.clearTimeout(noticeTimer.current)
+    noticeTimer.current = window.setTimeout(() => setNotice(null), 4000)
+  }
 
+  const patch = (next: Partial<GifDoc>) => setDoc((d) => ({ ...d, ...next }))
+
+  // Advance the preview. The last frame holds for the extra time it will hold in the export.
   useEffect(() => {
-    return () => {
-      for (const url of urlsRef.current) URL.revokeObjectURL(url);
-      urlsRef.current.clear();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!loopPreview || frames.length < 2) return;
-    const isPlaybackLast = reverse
-      ? previewIndex === 0
-      : previewIndex === frames.length - 1;
-    const delay = Math.max(50, delayMs + (isPlaybackLast ? holdLastMs : 0));
+    if (!playing || count < 2) return
+    const isLast = doc.reverse ? activeIndex === 0 : activeIndex === count - 1
+    const delay = Math.max(40, doc.delayMs + (isLast ? doc.holdLastMs : 0))
     const id = window.setTimeout(() => {
-      setPreviewIndex((i) => {
-        if (reverse) return (i - 1 + frames.length) % frames.length;
-        return (i + 1) % frames.length;
-      });
-    }, delay);
-    return () => window.clearTimeout(id);
-  }, [loopPreview, frames.length, delayMs, holdLastMs, reverse, previewIndex]);
+      setFrameIndex((i) => {
+        const at = Math.min(i, count - 1)
+        return doc.reverse ? (at - 1 + count) % count : (at + 1) % count
+      })
+    }, delay)
+    return () => window.clearTimeout(id)
+  }, [playing, count, activeIndex, doc.delayMs, doc.holdLastMs, doc.reverse])
 
-  const onFiles = (fileList: FileList | null) => {
-    if (!fileList?.length) return;
-    setError(null);
-    const list = Array.from(fileList).filter((f) =>
-      f.type.startsWith("image/"),
-    );
-    for (const file of list) {
-      const url = URL.createObjectURL(file);
-      trackUrl(url);
-      const id = crypto.randomUUID();
-      const img = new Image();
-      img.onload = () => {
-        setFrames((prev) => [
-          ...prev,
-          { id, name: file.name, url, image: img },
-        ]);
-      };
-      img.onerror = () => {
-        revokeUrl(url);
-        setError(`Could not load ${file.name}`);
-      };
-      img.src = url;
-    }
-  };
+  const addFiles = async (files: File[]) => {
+    const results = await Promise.allSettled(files.map(loadImageFile))
+    const loaded = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
+    const failed = results.length - loaded.length
+    if (failed) say(`Could not open ${failed} file${failed > 1 ? 's' : ''}`)
+    if (!loaded.length) return
+    const frames: GifFrame[] = loaded.map((img) => ({
+      id: crypto.randomUUID(),
+      name: img.name,
+      imageId: img.id,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+    }))
+    setDoc((d) => ({ ...d, frames: [...d.frames, ...frames] }))
+  }
 
-  const removeFrame = (id: string) => {
-    setFrames((prev) =>
-      prev.filter((f) => {
-        if (f.id === id) revokeUrl(f.url);
-        return f.id !== id;
-      }),
-    );
-  };
+  const removeAt = (id: string) => {
+    setDoc((d) => removeFrame(d, id))
+    setFrameIndex((i) => Math.max(0, Math.min(i, count - 2)))
+  }
 
-  const moveFrame = (id: string, dir: -1 | 1) => {
-    setFrames((prev) => {
-      const i = prev.findIndex((f) => f.id === id);
-      if (i < 0) return prev;
-      const j = i + dir;
-      if (j < 0 || j >= prev.length) return prev;
-      const next = [...prev];
-      const [item] = next.splice(i, 1);
-      next.splice(j, 0, item!);
-      return next;
-    });
-  };
-
-  const clearFrames = () => {
-    setFrames((prev) => {
-      for (const f of prev) revokeUrl(f.url);
-      return [];
-    });
-    setPreviewIndex(0);
-  };
+  const step = (dir: -1 | 1) => {
+    if (count < 2) return
+    setPlaying(false)
+    setFrameIndex((i) => (Math.min(i, count - 1) + dir + count) % count)
+  }
 
   const runExport = async () => {
-    if (!frames.length) return;
-    setBusy(true);
-    setError(null);
+    if (!hasFrames || busy) return
+    setBusy(true)
     try {
-      const result = await exportAnimation(format, {
-        frames: frames.map((f) => ({
-          image: f.image,
-          naturalWidth: f.image.naturalWidth || f.image.width,
-          naturalHeight: f.image.naturalHeight || f.image.height,
-        })),
-        delayMs,
-        maxSize,
-        reverse,
-        gifRepeat: loopOnce ? -1 : 0,
-        holdLastMs,
-        background,
-      });
-      downloadBlob(result.blob, result.filename);
+      const frames = doc.frames.flatMap((f) => {
+        const image = getImage(f.imageId)?.image
+        return image ? [{ image, naturalWidth: f.naturalWidth, naturalHeight: f.naturalHeight }] : []
+      })
+      if (!frames.length) throw new Error('Frames are still loading')
+      const result = await exportAnimation(doc.format, {
+        frames,
+        delayMs: doc.delayMs,
+        maxSize: doc.maxSize,
+        reverse: doc.reverse,
+        gifRepeat: doc.loopOnce ? -1 : 0,
+        holdLastMs: doc.holdLastMs,
+        background: doc.background,
+      })
+      downloadBlob(result.blob, result.filename)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to export");
+      say(e instanceof Error ? e.message : 'Export failed')
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
-  };
+  }
 
-  const shownIndex = previewIndex < frames.length ? previewIndex : 0;
-  const active = frames[shownIndex] ?? null;
-  const fps = delayMs > 0 ? (1000 / delayMs).toFixed(1) : "—";
+  const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if (isTypingTarget(e.target) || !hasFrames) return
+    if (e.key === ' ') {
+      e.preventDefault()
+      setPlaying((p) => !p)
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      step(-1)
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      step(1)
+    } else if ((e.key === 'Delete' || e.key === 'Backspace') && active) {
+      e.preventDefault()
+      removeAt(active.id)
+    }
+  })
+
+  const onPaste = useEffectEvent((e: ClipboardEvent) => {
+    if (isTypingTarget(e.target)) return
+    const files = imageFiles(e.clipboardData?.files)
+    if (files.length) {
+      e.preventDefault()
+      void addFiles(files)
+    }
+  })
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => onKeyDown(e)
+    const paste = (e: ClipboardEvent) => onPaste(e)
+    window.addEventListener('keydown', down)
+    window.addEventListener('paste', paste)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('paste', paste)
+    }
+  }, [])
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    const files = imageFiles(e.dataTransfer.files)
+    if (files.length) void addFiles(files)
+  }
+
+  const controls = (section: 'bar' | 'loop' | 'export') => (
+    <GifControls
+      doc={doc}
+      section={section}
+      onPatch={patch}
+      onAddFiles={(files) => void addFiles(files)}
+    />
+  )
+
+  const navActions = (
+    <>
+      <span className="nav-readout">
+        {hasFrames ? `${count} frame${count > 1 ? 's' : ''} · ${(loopDurationMs(doc) / 1000).toFixed(1)}s` : 'No frames'}
+      </span>
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={!hasFrames || busy}
+        onClick={() => void runExport()}
+      >
+        <Icon name="download" />
+        {busy ? 'Encoding…' : exportLabel(doc.format)}
+      </button>
+    </>
+  )
 
   return (
     <>
-      <AppNav />
-      <div className="tool">
-        <header className="tool-header">
-          <div>
-            <h1 className="tool-title">GIF</h1>
-            <p className="tool-sub">
-              Drop a series of images, set the frame delay, preview the loop,
-              then export as GIF or video. Encoding runs entirely in the browser
-              — MP4 is ideal for Instagram video.
-            </p>
-          </div>
-          <div className="header-actions">
-            <button
-              type="button"
-              className="btn primary"
-              onClick={runExport}
-              disabled={!frames.length || busy}
-            >
-              {exportButtonLabel(format, busy)}
-            </button>
-          </div>
-        </header>
+      <AppNav actions={navActions} />
+      <div
+        className={`editor ${dragging ? 'is-dragging' : ''}`}
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes('Files')) {
+            e.preventDefault()
+            setDragging(true)
+          }
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget === e.target) setDragging(false)
+        }}
+        onDrop={onDrop}
+      >
+        {isPhone ? null : <div className="split-bar">{controls('bar')}</div>}
 
-        <div className="tool-body">
-          <aside className="sidebar">
-            <section className="panel">
-              <h2>Frames</h2>
-              <p className="hint">
-                Order is top → bottom. Move frames with the arrows.
+        <div className="workspace">
+          {active ? (
+            <div className="gif-stage" style={{ background: doc.background }}>
+              <img className="gif-stage-img" src={getImage(active.imageId)?.url} alt={active.name} />
+            </div>
+          ) : null}
+
+          {!hasFrames ? (
+            <div className="empty-state">
+              <Icon name="film" size={28} />
+              <h2>Turn a series of photos into a loop</h2>
+              <p>
+                Drop images here, paste them, or pick them below. They play in order as a GIF or a
+                video — all encoded on your device.
               </p>
-              <input
-                id={fileInputId}
-                type="file"
-                accept="image/*"
-                multiple
-                className="visually-hidden"
-                onChange={(e) => {
-                  onFiles(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-              <label htmlFor={fileInputId} className="btn secondary file-label">
-                Add images
+              <label className="btn btn-primary">
+                Choose photos
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="visually-hidden"
+                  onChange={(e) => {
+                    const files = imageFiles(e.target.files)
+                    if (files.length) void addFiles(files)
+                    e.target.value = ''
+                  }}
+                />
               </label>
-              {frames.length ? (
-                <button
-                  type="button"
-                  className="btn danger-outline small-margin"
-                  onClick={clearFrames}
-                >
-                  Clear all
-                </button>
-              ) : null}
+            </div>
+          ) : null}
 
-              <ul className="layer-list">
-                {frames.map((f, i) => (
-                  <li key={f.id}>
-                    <button
-                      type="button"
-                      className={`layer-item ${shownIndex === i ? "active" : ""}`}
-                      onClick={() => {
-                        setLoopPreview(false);
-                        setPreviewIndex(i);
-                      }}
-                    >
-                      <span className="layer-name">
-                        {i + 1}. {f.name}
-                      </span>
-                    </button>
-                    <div className="layer-actions">
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        title="Move earlier"
-                        onClick={() => moveFrame(f.id, -1)}
-                      >
-                        ◀
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        title="Move later"
-                        onClick={() => moveFrame(f.id, 1)}
-                      >
-                        ▶
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn danger"
-                        title="Remove"
-                        onClick={() => removeFrame(f.id)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {!frames.length ? (
-                <p className="hint muted">
-                  No frames yet. Add images to build a GIF.
-                </p>
-              ) : null}
-            </section>
-
-            <section className="panel">
-              <h2>Export format</h2>
-              <div
-                className="format-list"
-                role="radiogroup"
-                aria-labelledby={formatFieldId}
-              >
-                <span id={formatFieldId} className="visually-hidden">
-                  Export format
-                </span>
-                {PRIMARY_FORMAT_OPTIONS.map((opt) => (
-                  <label key={opt.value} className="format-option">
-                    <input
-                      type="radio"
-                      name="export-format"
-                      value={opt.value}
-                      checked={format === opt.value}
-                      onChange={() => setFormat(opt.value)}
-                    />
-                    <span className="format-option-text">
-                      <span className="format-option-label">{opt.label}</span>
-                      <span className="format-option-hint">{opt.hint}</span>
-                    </span>
-                  </label>
-                ))}
-                {showMoreFormats
-                  ? MORE_FORMAT_OPTIONS.map((opt) => (
-                      <label key={opt.value} className="format-option">
-                        <input
-                          type="radio"
-                          name="export-format"
-                          value={opt.value}
-                          checked={format === opt.value}
-                          onChange={() => setFormat(opt.value)}
-                        />
-                        <span className="format-option-text">
-                          <span className="format-option-label">
-                            {opt.label}
-                          </span>
-                          <span className="format-option-hint">{opt.hint}</span>
-                        </span>
-                      </label>
-                    ))
-                  : null}
-              </div>
+          {hasFrames ? (
+            <div className="playback-bar" role="toolbar" aria-label="Playback">
               <button
                 type="button"
-                className="btn link-btn small-margin"
-                aria-expanded={showMoreFormats}
-                onClick={() => {
-                  setShowMoreFormats((open) => {
-                    if (open && MORE_FORMAT_VALUES.has(format)) {
-                      setFormat("mp4");
-                    }
-                    return !open;
-                  });
-                }}
+                className="tool-btn"
+                aria-label="Previous frame"
+                title="Previous frame (←)"
+                disabled={count < 2}
+                onClick={() => step(-1)}
               >
-                {showMoreFormats ? "Show less" : "Show more formats"}
+                <Icon name="chevron-left" />
               </button>
-            </section>
-
-            <section className="panel">
-              <h2>Timing</h2>
-              <label className="field">
-                <span>Delay per frame (ms)</span>
-                <input
-                  type="number"
-                  min={50}
-                  step={10}
-                  value={delayMs}
-                  onChange={(e) =>
-                    setDelayMs(
-                      Math.max(50, Math.floor(Number(e.target.value) || 50)),
-                    )
-                  }
-                  disabled={!usesFrameDelay(format)}
-                />
-              </label>
-              <p className="hint muted">
-                {usesFrameDelay(format)
-                  ? `≈ ${fps} fps`
-                  : "Delay applies to GIF and video exports"}
-              </p>
-              <label className="field small-margin">
-                <span>Hold last frame extra (ms)</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={50}
-                  value={holdLastMs}
-                  onChange={(e) =>
-                    setHoldLastMs(
-                      Math.max(0, Math.floor(Number(e.target.value) || 0)),
-                    )
-                  }
-                  disabled={!usesFrameDelay(format)}
-                />
-              </label>
-              <label className="field small-margin">
-                <span>Max output size (px)</span>
-                <input
-                  type="number"
-                  min={64}
-                  step={1}
-                  value={maxSize}
-                  onChange={(e) =>
-                    setMaxSize(
-                      Math.max(64, Math.floor(Number(e.target.value) || 64)),
-                    )
-                  }
-                />
-              </label>
-              <div
-                className="preset-chips small-margin"
-                role="group"
-                aria-label="Output size presets"
+              <button
+                type="button"
+                className="tool-btn play-btn"
+                aria-label={playing ? 'Pause' : 'Play'}
+                aria-pressed={playing}
+                title={playing ? 'Pause (space)' : 'Play (space)'}
+                disabled={count < 2}
+                onClick={() => setPlaying((p) => !p)}
               >
-                {OUTPUT_SIZE_PRESETS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    className={`tile-chip ${maxSize === n ? "active" : ""}`}
-                    onClick={() => setMaxSize(n)}
-                  >
-                    {n}px
-                  </button>
-                ))}
-              </div>
-              <label className="field small-margin">
-                <span>Background</span>
-                <input
-                  type="color"
-                  value={background}
-                  onChange={(e) => setBackground(e.target.value)}
-                />
-              </label>
-              <label className="check-row small-margin">
-                <input
-                  type="checkbox"
-                  checked={reverse}
-                  onChange={(e) => setReverse(e.target.checked)}
-                />
-                <span>Reverse frames</span>
-              </label>
-              <label className="check-row small-margin">
-                <input
-                  type="checkbox"
-                  checked={loopOnce}
-                  onChange={(e) => setLoopOnce(e.target.checked)}
-                  disabled={format !== "gif"}
-                />
-                <span>Play once (GIF only)</span>
-              </label>
-              <label className="check-row small-margin">
-                <input
-                  type="checkbox"
-                  checked={loopPreview}
-                  onChange={(e) => setLoopPreview(e.target.checked)}
-                />
-                <span>Loop preview</span>
-              </label>
-            </section>
-          </aside>
-
-          <main className="main">
-            <div className="gif-preview" style={{ background }}>
-              {active ? (
-                <img
-                  src={active.url}
-                  alt={active.name}
-                  className="gif-preview-img"
-                />
-              ) : (
-                <p className="hint muted">
-                  Preview appears here once you add frames.
-                </p>
-              )}
+                <Icon name={playing ? 'pause' : 'play'} />
+              </button>
+              <button
+                type="button"
+                className="tool-btn"
+                aria-label="Next frame"
+                title="Next frame (→)"
+                disabled={count < 2}
+                onClick={() => step(1)}
+              >
+                <Icon name="chevron-right" />
+              </button>
+              <span className="playback-count" aria-live="off">
+                {activeIndex + 1} / {count}
+              </span>
             </div>
-            {frames.length ? (
-              <p className="footer-hint">
-                Frame {shownIndex + 1} of {frames.length}
-                {loopPreview ? " · looping" : ""}
-                {reverse ? " · reversed" : ""}
-              </p>
-            ) : null}
-            {error ? <p className="error-text">{error}</p> : null}
-          </main>
+          ) : null}
         </div>
+
+        <FrameStrip
+          doc={doc}
+          activeIndex={activeIndex}
+          onSelect={(i) => {
+            setFrameIndex(i)
+            setPlaying(false)
+          }}
+          onAddFiles={(files) => void addFiles(files)}
+          onRemove={removeAt}
+          onDuplicate={(id) => setDoc((d) => duplicateFrame(d, id))}
+          onReorder={(from, to) => {
+            setDoc((d) => reorderFrames(d, from, to))
+            setFrameIndex(to)
+            setPlaying(false)
+          }}
+        />
+
+        {isPhone ? (
+          <div className="dock">
+            <div className="dock-tabs" role="tablist" aria-label="Controls">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dockTab === 'loop'}
+                className={dockTab === 'loop' ? 'on' : ''}
+                onClick={() => setDockTab('loop')}
+              >
+                Loop
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dockTab === 'export'}
+                className={dockTab === 'export' ? 'on' : ''}
+                onClick={() => setDockTab('export')}
+              >
+                Export
+              </button>
+            </div>
+            <div className="dock-body">{controls(dockTab)}</div>
+          </div>
+        ) : null}
+
+        {dragging ? <div className="drop-overlay">Drop to add frames</div> : null}
+        {notice ? (
+          <div className="toast" role="status">
+            {notice}
+          </div>
+        ) : null}
       </div>
     </>
-  );
+  )
 }

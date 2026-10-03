@@ -24,3 +24,12 @@ export const BACKGROUND_SWATCHES: { label: string; value: string | null }[] = [
 ]
 
 export const OUTPUT_SIZE_PRESETS = [1080, 720, 480] as const
+
+/** The GIF tool always needs an opaque background, so it has no transparent option. */
+export const GIF_BACKGROUNDS: { label: string; value: string }[] = [
+  { label: 'Black', value: '#000000' },
+  { label: 'White', value: '#ffffff' },
+  { label: 'Linen', value: '#f7efe3' },
+  { label: 'Ink', value: '#1d1b18' },
+  { label: 'Teal', value: '#2f6f73' },
+]

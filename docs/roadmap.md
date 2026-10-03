@@ -72,11 +72,18 @@ Done:
   DOM-free except for that one lookup. Done as groundwork for #1; the same change was needed for
   the Phase 4 Expo port. ([#12](https://github.com/ShaneRich5/stitcher/issues/12))
 
+- [x] The GIF tool was rebuilt on the carousel's shell (nav actions, control bar, centred stage,
+  thumbnail strip, phone dock), with frame thumbnails and drag-to-reorder, drag-and-drop and
+  paste, play/pause and frame stepping, and frame-rate presets. It now shares the carousel's
+  image loader and registry, which removed its duplicate loader and the lint warning in #2.
+  The old pre-rebuild styles it was the last user of were deleted (`index.css` 616 → 232 lines).
+- [x] ~~Fix the ref cleanup lint warning in `gif-maker.tsx`~~ — gone with that rewrite.
+  `npm run lint` is now clean. ([#2](https://github.com/ShaneRich5/stitcher/issues/2))
+
 Open:
 
 - [ ] Autosave doesn't cover the GIF tool yet — its frames are still lost on reload or switching
-  tools. Same pattern as #1, scoped to `gif-maker.tsx`'s frame list.
-- [ ] Fix the ref cleanup lint warning in `gif-maker.tsx`. ([#2](https://github.com/ShaneRich5/stitcher/issues/2))
+  tools. Same pattern as #1, scoped to `GifDoc`.
 - [ ] Bring `.cursorrules` in line with the current architecture. ([#3](https://github.com/ShaneRich5/stitcher/issues/3))
 - [ ] Vitest unit tests for the carousel maths, snapping and undo history. ([#4](https://github.com/ShaneRich5/stitcher/issues/4))
 - [ ] Merge the duplicated `fitContain` / `drawFrame` helpers in the encoders. ([#13](https://github.com/ShaneRich5/stitcher/issues/13))
