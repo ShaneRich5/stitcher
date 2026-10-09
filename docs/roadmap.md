@@ -79,6 +79,12 @@ Done:
   The old pre-rebuild styles it was the last user of were deleted (`index.css` 616 → 232 lines).
 - [x] ~~Fix the ref cleanup lint warning in `gif-maker.tsx`~~ — gone with that rewrite.
   `npm run lint` is now clean. ([#2](https://github.com/ShaneRich5/stitcher/issues/2))
+- [x] **Per-frame timing**, behind a Strip / Timeline switch above the frames. The timeline draws
+  each frame as wide as it holds, with a ruler and a playhead, and a frame can take its own hold
+  (`GifFrame.holdMs`) instead of the shared speed. Both encoders already computed a per-frame
+  duration, so this threaded through as `frameDelaysMs`. The strip stays the default and the
+  choice is remembered in `localStorage`. Design directions compared first on a
+  [mockup canvas](https://claude.ai/artifact/HnCXt4uu7hudouewqa1EFN).
 
 Open:
 

@@ -16,8 +16,10 @@ export type AnimationExportFormat =
 
 export type EncodeAnimationOptions = {
   frames: GifFrameSource[]
-  /** Frame delay in milliseconds (GIF / video) */
+  /** Frame delay in milliseconds (GIF / video), for frames without their own in `frameDelaysMs` */
   delayMs: number
+  /** Per-frame delays in source order, before `reverse` is applied. Gaps fall back to `delayMs`. */
+  frameDelaysMs?: (number | undefined)[]
   /** Max output width/height; frames are fit inside this box */
   maxSize?: number
   /** Background fill behind letterboxed frames */
@@ -101,21 +103,39 @@ function canvasToBlob(
   })
 }
 
-function playbackFrames(opts: EncodeAnimationOptions): GifFrameSource[] {
-  return opts.reverse ? [...opts.frames].reverse() : opts.frames
+/** One frame and how long it is held, in playback order. */
+export type PlaybackStep = { frame: GifFrameSource; delayMs: number }
+
+/**
+ * Pair each frame with its delay, put them in playback order, then add `holdLastMs` to whichever
+ * frame ends up last. Delays are paired before reversing, so they travel with their own frame.
+ */
+export function playbackSteps(opts: EncodeAnimationOptions): PlaybackStep[] {
+  const base = Math.max(20, Math.round(opts.delayMs))
+  const steps: PlaybackStep[] = opts.frames.map((frame, i) => {
+    const own = opts.frameDelaysMs?.[i]
+    return { frame, delayMs: own === undefined ? base : Math.max(20, Math.round(own)) }
+  })
+  if (opts.reverse) steps.reverse()
+
+  const hold = Math.max(0, Math.round(opts.holdLastMs ?? 0))
+  const last = steps.length - 1
+  if (hold && last >= 0) {
+    steps[last] = { ...steps[last]!, delayMs: steps[last]!.delayMs + hold }
+  }
+  return steps
 }
 
-function frameDelayMs(opts: EncodeAnimationOptions, index: number, total: number): number {
-  const base = Math.max(20, Math.round(opts.delayMs))
-  const extra = index === total - 1 ? Math.max(0, Math.round(opts.holdLastMs ?? 0)) : 0
-  return base + extra
+function playbackFrames(opts: EncodeAnimationOptions): GifFrameSource[] {
+  return playbackSteps(opts).map((s) => s.frame)
 }
 
 /** Build an animated GIF blob from canvas-drawn frames (browser-only). */
 export async function encodeGifBlob(
   opts: EncodeAnimationOptions,
 ): Promise<Blob> {
-  const frames = playbackFrames(opts)
+  const steps = playbackSteps(opts)
+  const frames = steps.map((s) => s.frame)
   const { background = '#000000' } = opts
   if (!frames.length) {
     throw new Error('Need at least one frame to encode a GIF')
@@ -140,7 +160,7 @@ export async function encodeGifBlob(
     const index = applyPalette(data, palette)
     gif.writeFrame(index, outW, outH, {
       palette,
-      delay: frameDelayMs(opts, i, frames.length),
+      delay: steps[i]!.delayMs,
       ...(i === 0 ? { repeat } : {}),
     })
   }

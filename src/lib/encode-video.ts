@@ -7,7 +7,7 @@ import {
   WebMOutputFormat,
   getFirstEncodableVideoCodec,
 } from 'mediabunny'
-import type { EncodeAnimationOptions, GifFrameSource } from './encode-gif'
+import { playbackSteps, type EncodeAnimationOptions, type GifFrameSource } from './encode-gif'
 
 export type VideoExportFormat = 'mp4' | 'webm'
 
@@ -69,8 +69,9 @@ export async function encodeVideoBlob(
   format: VideoExportFormat,
   opts: EncodeAnimationOptions,
 ): Promise<Blob> {
-  const frames = opts.reverse ? [...opts.frames].reverse() : opts.frames
-  const { delayMs, background = '#000000' } = opts
+  const steps = playbackSteps(opts)
+  const frames = steps.map((s) => s.frame)
+  const { background = '#000000' } = opts
   if (!frames.length) {
     throw new Error('Need at least one frame to encode video')
   }
@@ -85,13 +86,9 @@ export async function encodeVideoBlob(
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('Could not get canvas 2D context')
 
-  const baseDuration = Math.max(0.05, delayMs / 1000)
-  const holdExtra = Math.max(0, (opts.holdLastMs ?? 0) / 1000)
-  const lastDuration = baseDuration + holdExtra
-  const avgDuration =
-    frames.length === 1
-      ? lastDuration
-      : ((frames.length - 1) * baseDuration + lastDuration) / frames.length
+  // Each frame carries its own hold, so the declared rate is the average over the whole loop.
+  const durations = steps.map((s) => Math.max(0.05, s.delayMs / 1000))
+  const avgDuration = durations.reduce((total, d) => total + d, 0) / durations.length
   const frameRate = 1 / Math.max(0.05, avgDuration)
 
   const outputFormat =
@@ -125,7 +122,7 @@ export async function encodeVideoBlob(
   let timestamp = 0
   for (let i = 0; i < frames.length; i++) {
     drawFrame(ctx, frames[i]!, outW, outH, background)
-    const duration = i === frames.length - 1 ? lastDuration : baseDuration
+    const duration = durations[i]!
     await canvasSource.add(timestamp, duration, {
       keyFrame: i === 0 || i % Math.max(1, Math.round(frameRate * 2)) === 0,
     })

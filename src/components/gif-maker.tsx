@@ -2,11 +2,17 @@ import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'rea
 import { downloadBlob } from '../lib/download'
 import { exportAnimation, type AnimationExportFormat } from '../lib/encode-gif'
 import {
+  applyDurationToAll,
+  clearFrameDuration,
   createGifDoc,
   duplicateFrame,
+  frameDurations,
+  hasCustomTiming,
   loopDurationMs,
+  playbackDurations,
   removeFrame,
   reorderFrames,
+  setFrameDuration,
   type GifDoc,
 } from '../lib/gif-doc'
 import { getImage } from '../lib/image-registry'
@@ -15,8 +21,22 @@ import { useMediaQuery } from '../lib/use-media-query'
 import type { GifFrame } from '../types'
 import { AppNav } from './app-nav'
 import { FrameStrip } from './frame-strip'
+import { FrameTimeline } from './frame-timeline'
 import { GifControls } from './gif-controls'
 import { Icon } from './icons'
+
+type FrameView = 'strip' | 'timeline'
+
+const VIEW_KEY = 'stitcher.gif.view'
+
+/** Remembering the view is a convenience, so a browser that blocks storage just gets the default. */
+function readStoredView(): FrameView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'timeline' ? 'timeline' : 'strip'
+  } catch {
+    return 'strip'
+  }
+}
 
 function exportLabel(format: AnimationExportFormat): string {
   switch (format) {
@@ -43,6 +63,7 @@ export function GifMaker() {
   const [frameIndex, setFrameIndex] = useState(0)
   const [playing, setPlaying] = useState(true)
   const [dockTab, setDockTab] = useState<'loop' | 'export'>('loop')
+  const [view, setView] = useState<FrameView>(readStoredView)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -53,6 +74,7 @@ export function GifMaker() {
   const activeIndex = count ? Math.min(frameIndex, count - 1) : 0
   const active: GifFrame | null = doc.frames[activeIndex] ?? null
   const hasFrames = count > 0
+  const customTiming = hasCustomTiming(doc)
 
   const say = (message: string) => {
     setNotice(message)
@@ -62,11 +84,19 @@ export function GifMaker() {
 
   const patch = (next: Partial<GifDoc>) => setDoc((d) => ({ ...d, ...next }))
 
-  // Advance the preview. The last frame holds for the extra time it will hold in the export.
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_KEY, view)
+    } catch {
+      // A browser that blocks storage just won't remember the choice.
+    }
+  }, [view])
+
+  // Advance the preview, holding each frame for exactly as long as the export will.
   useEffect(() => {
     if (!playing || count < 2) return
-    const isLast = doc.reverse ? activeIndex === 0 : activeIndex === count - 1
-    const delay = Math.max(40, doc.delayMs + (isLast ? doc.holdLastMs : 0))
+    // The same per-frame holds the export writes, so the preview matches the file.
+    const delay = Math.max(40, playbackDurations(doc)[activeIndex] ?? doc.delayMs)
     const id = window.setTimeout(() => {
       setFrameIndex((i) => {
         const at = Math.min(i, count - 1)
@@ -74,7 +104,7 @@ export function GifMaker() {
       })
     }, delay)
     return () => window.clearTimeout(id)
-  }, [playing, count, activeIndex, doc.delayMs, doc.holdLastMs, doc.reverse])
+  }, [playing, count, activeIndex, doc])
 
   const addFiles = async (files: File[]) => {
     const results = await Promise.allSettled(files.map(loadImageFile))
@@ -97,6 +127,17 @@ export function GifMaker() {
     setFrameIndex((i) => Math.max(0, Math.min(i, count - 2)))
   }
 
+  const selectFrame = (i: number) => {
+    setFrameIndex(i)
+    setPlaying(false)
+  }
+
+  const reorder = (from: number, to: number) => {
+    setDoc((d) => reorderFrames(d, from, to))
+    setFrameIndex(to)
+    setPlaying(false)
+  }
+
   const step = (dir: -1 | 1) => {
     if (count < 2) return
     setPlaying(false)
@@ -115,6 +156,7 @@ export function GifMaker() {
       const result = await exportAnimation(doc.format, {
         frames,
         delayMs: doc.delayMs,
+        frameDelaysMs: frameDurations(doc),
         maxSize: doc.maxSize,
         reverse: doc.reverse,
         gifRepeat: doc.loopOnce ? -1 : 0,
@@ -289,22 +331,63 @@ export function GifMaker() {
           ) : null}
         </div>
 
-        <FrameStrip
-          doc={doc}
-          activeIndex={activeIndex}
-          onSelect={(i) => {
-            setFrameIndex(i)
-            setPlaying(false)
-          }}
-          onAddFiles={(files) => void addFiles(files)}
-          onRemove={removeAt}
-          onDuplicate={(id) => setDoc((d) => duplicateFrame(d, id))}
-          onReorder={(from, to) => {
-            setDoc((d) => reorderFrames(d, from, to))
-            setFrameIndex(to)
-            setPlaying(false)
-          }}
-        />
+        <div className="frames-pane">
+          <div className="view-switch" role="group" aria-label="Frame view">
+            <div className="segmented">
+              <button
+                type="button"
+                className={`seg-btn ${view === 'strip' ? 'on' : ''}`}
+                aria-pressed={view === 'strip'}
+                title="Thumbnails in playback order"
+                onClick={() => setView('strip')}
+              >
+                <Icon name="image" size={16} />
+                Strip
+              </button>
+              <button
+                type="button"
+                className={`seg-btn ${view === 'timeline' ? 'on' : ''}`}
+                aria-pressed={view === 'timeline'}
+                title="Frames sized by how long they hold, with per-frame timing"
+                onClick={() => setView('timeline')}
+              >
+                <Icon name="film" size={16} />
+                Timeline
+              </button>
+            </div>
+            {view === 'strip' && customTiming ? (
+              <span className="view-switch-hint">
+                Some frames have their own timing — open the timeline to see it.
+              </span>
+            ) : null}
+          </div>
+
+          {view === 'timeline' ? (
+            <FrameTimeline
+              doc={doc}
+              activeIndex={activeIndex}
+              playing={playing}
+              onSelect={selectFrame}
+              onAddFiles={(files) => void addFiles(files)}
+              onRemove={removeAt}
+              onDuplicate={(id) => setDoc((d) => duplicateFrame(d, id))}
+              onReorder={reorder}
+              onDuration={(id, ms) => setDoc((d) => setFrameDuration(d, id, ms))}
+              onResetDuration={(id) => setDoc((d) => clearFrameDuration(d, id))}
+              onApplyToAll={(ms) => setDoc((d) => applyDurationToAll(d, ms))}
+            />
+          ) : (
+            <FrameStrip
+              doc={doc}
+              activeIndex={activeIndex}
+              onSelect={selectFrame}
+              onAddFiles={(files) => void addFiles(files)}
+              onRemove={removeAt}
+              onDuplicate={(id) => setDoc((d) => duplicateFrame(d, id))}
+              onReorder={reorder}
+            />
+          )}
+        </div>
 
         {isPhone ? (
           <div className="dock">

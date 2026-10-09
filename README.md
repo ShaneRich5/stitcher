@@ -41,6 +41,11 @@ Everything runs on your device. There's no account, no upload, no watermark and 
   Delete removes the frame on screen.
 - **Speed** as frame-rate presets (1 to 24 fps) with a precise frame-delay slider under "Style",
   plus an extra hold on the last frame.
+- **Timeline view** (the Strip / Timeline switch above the frames): each frame is drawn as wide as
+  it is long, with a ruler and a playhead, so you can see the timing rather than read it. Give a
+  single frame its own hold, apply that hold to every frame, or reset it to follow the shared
+  speed. A frame with its own timing shows its duration in the accent color. The strip stays the
+  default; your choice is remembered.
 - **Export** as **MP4** (H.264) or **GIF**; WebM, PNG-frame ZIP and JPEG-frame ZIP are under
   "Style → More formats". Output size presets of 1080/720/480, or any size up to 1920.
 - Background color, reversed playback and play-once (GIF only).

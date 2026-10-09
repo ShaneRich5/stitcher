@@ -747,6 +747,230 @@ select:focus-visible {
   width: 64px;
 }
 
+/* ---------- frame views (strip / timeline) ---------- */
+.frames-pane {
+  border-top: 1px solid var(--border);
+}
+
+.frames-pane .slide-strip,
+.frames-pane .timeline {
+  border-top: 0;
+}
+
+.view-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 20px 0;
+}
+
+.view-switch .seg-btn {
+  gap: 6px;
+}
+
+.view-switch-hint {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.timeline {
+  padding: 10px 20px 14px;
+}
+
+.timeline-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.timeline-head > strong {
+  color: var(--text-h);
+}
+
+.timeline-elapsed {
+  font: 13px var(--mono);
+  color: var(--text-h);
+}
+
+.timeline-elapsed span {
+  color: var(--text);
+}
+
+.timeline-frame-timing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.seg-readout {
+  font-family: var(--mono);
+  font-size: 13px;
+  min-width: 68px;
+  justify-content: center;
+  cursor: default;
+}
+
+.timeline-track-wrap {
+  position: relative;
+}
+
+.timeline-ruler {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  display: flex;
+  font: 11px var(--mono);
+  color: var(--text);
+}
+
+.timeline-ruler li {
+  flex-basis: 0;
+  min-width: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.timeline-ruler-end {
+  flex: none !important;
+  width: 48px;
+}
+
+.timeline-track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 2px;
+  align-items: stretch;
+}
+
+/* Each block's width is its hold, so timing is something you see rather than a number. */
+.timeline-block {
+  position: relative;
+  flex-basis: 0;
+  min-width: 0;
+}
+
+.timeline-block-btn {
+  width: 100%;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--code-bg);
+  cursor: grab;
+  text-align: left;
+  overflow: hidden;
+}
+
+.timeline-block.active .timeline-block-btn {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.timeline-block.drop-target .timeline-block-btn {
+  border-color: var(--accent-border);
+  border-style: dashed;
+}
+
+.timeline-block:active .timeline-block-btn {
+  cursor: grabbing;
+}
+
+.timeline-thumb {
+  flex: none;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.timeline-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.timeline-block-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--mono);
+}
+
+.timeline-block-num {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.timeline-block-ms {
+  font-size: 12px;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+/* Accented means the frame carries its own hold rather than following the shared speed. */
+.timeline-block-ms.is-custom {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.timeline-add-cell {
+  flex: none;
+}
+
+.timeline-add {
+  width: 44px;
+  height: 76px;
+  margin: 0;
+}
+
+.timeline-playhead {
+  position: absolute;
+  top: -6px;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.timeline-playhead span {
+  position: absolute;
+  top: -4px;
+  left: -5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--accent);
+  display: block;
+}
+
+.timeline-empty {
+  margin: 0;
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-playhead {
+    transition: none !important;
+  }
+}
+
 /* The phone dock stacks the same control groups instead of hiding them behind a popover. */
 .carousel-controls.is-stacked {
   flex-direction: column;

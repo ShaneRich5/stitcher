@@ -21,7 +21,8 @@ src/
     icons.tsx, app-nav.tsx    Shared UI
     gif-maker.tsx             GIF tool: state, playback, keyboard, drag/drop, paste, export
     gif-controls.tsx          Whole-animation controls (speed, size, format, style)
-    frame-strip.tsx           Frame thumbnails; drag to reorder
+    frame-strip.tsx           Frame thumbnails; drag to reorder (default view)
+    frame-timeline.tsx        Advanced view: frames sized by hold, ruler, playhead, per-frame timing
   lib/
     carousel.ts               Doc helpers: makeLayer, zoom, relayout, slide add/remove
     gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay
@@ -47,8 +48,14 @@ Layer { id, name, imageId, naturalWidth, naturalHeight,
         x, y, width, height, rotation, flipX, fit, lockAspect }
 
 GifDoc { frames, delayMs, holdLastMs, maxSize, background, reverse, loopOnce, format }
-GifFrame { id, name, imageId, naturalWidth, naturalHeight }
+GifFrame { id, name, imageId, naturalWidth, naturalHeight, holdMs? }
 ```
+
+- `delayMs` is the shared speed; a frame's optional `holdMs` overrides it for that frame alone.
+  `gif-doc.ts` derives the rest: `frameDurations` (per frame, no last-frame hold) is what export
+  sends, and `playbackDurations` adds `holdLastMs` to whichever frame plays last, which is what
+  the timeline draws and the preview times itself by — so the preview matches the exported file.
+  Which frame plays last depends on `reverse`, so `lastPlayedIndex` decides it in one place.
 
 - Both docs hold **plain data only**. Images are referenced by `imageId`; `lib/image-registry.ts`
   maps that id to the decoded `HTMLImageElement`, its object URL and the source blob. That keeps
@@ -70,6 +77,10 @@ GifFrame { id, name, imageId, naturalWidth, naturalHeight }
 - Export does not read the stage. `renderSlide` redraws each slide from the source image
   pixels, so output is full resolution regardless of the on-screen zoom. Grid cutting crops
   that canvas. Files go into one ZIP (or a single file), or to the share sheet on phones.
+- Animation export pairs each frame with its hold in `playbackSteps` (`encode-gif.ts`) *before*
+  reversing, so a hold travels with its own frame, and adds `holdLastMs` to whichever step ends up
+  last. Both encoders consume those steps: the GIF writes each step's `delay`, and the video
+  passes each duration to `canvasSource.add`, declaring the loop's average as its frame rate.
 
 ## State
 

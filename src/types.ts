@@ -32,6 +32,8 @@ export type GifFrame = {
   imageId: string
   naturalWidth: number
   naturalHeight: number
+  /** Overrides the doc's shared `delayMs` for this frame alone. Set from the timeline view. */
+  holdMs?: number
 }
 
 /** A row of identical slides. Layers live in world space so one image can span several slides. */
