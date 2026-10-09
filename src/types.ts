@@ -36,6 +36,20 @@ export type GifFrame = {
   holdMs?: number
 }
 
+/** One photo in the video collage: the photo is its background, its cutout the stacked subject. */
+export type CollageItem = {
+  id: string
+  name: string
+  /** The photo itself, looked up in `lib/image-registry`. */
+  imageId: string
+  naturalWidth: number
+  naturalHeight: number
+  /** The cutout of its subject (same size as the photo), or null until background removal finishes. */
+  cutoutId: string | null
+  /** Background removal failed; the strip offers a retry. */
+  failed: boolean
+}
+
 /** A row of identical slides. Layers live in world space so one image can span several slides. */
 export type CarouselDoc = {
   slideW: number

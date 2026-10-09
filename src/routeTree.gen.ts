@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CollageRouteImport } from './routes/collage'
 import { Route as GifRouteImport } from './routes/gif'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollageRoute = CollageRouteImport.update({
+  id: '/collage',
+  path: '/collage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GifRoute = GifRouteImport.update({
@@ -25,27 +31,31 @@ const GifRoute = GifRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/collage': typeof CollageRoute
   '/gif': typeof GifRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/collage': typeof CollageRoute
   '/gif': typeof GifRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/collage': typeof CollageRoute
   '/gif': typeof GifRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/gif'
+  fullPaths: '/' | '/collage' | '/gif'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/gif'
-  id: '__root__' | '/' | '/gif'
+  to: '/' | '/collage' | '/gif'
+  id: '__root__' | '/' | '/collage' | '/gif'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CollageRoute: typeof CollageRoute
   GifRoute: typeof GifRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collage': {
+      id: '/collage'
+      path: '/collage'
+      fullPath: '/collage'
+      preLoaderRoute: typeof CollageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gif': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CollageRoute: CollageRoute,
   GifRoute: GifRoute,
 }
 export const routeTree = rootRouteImport

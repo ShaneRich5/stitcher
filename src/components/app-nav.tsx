@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 const links = [
   { to: '/', label: 'Carousel' },
   { to: '/gif', label: 'GIF' },
+  { to: '/collage', label: 'Collage' },
 ] as const
 
 export function AppNav({ actions }: { actions?: ReactNode }) {

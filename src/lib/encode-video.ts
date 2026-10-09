@@ -64,32 +64,31 @@ export function canEncodeVideoInBrowser(): boolean {
   return typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined'
 }
 
-/** Encode discrete image frames to MP4 (H.264) or WebM via WebCodecs. */
-export async function encodeVideoBlob(
+type VideoSink = {
+  canvas: HTMLCanvasElement
+  ctx: CanvasRenderingContext2D
+  /** Encode what's on the canvas now. Times are in seconds. */
+  add: (timestamp: number, duration: number, keyFrame: boolean) => Promise<void>
+  finish: () => Promise<Blob>
+}
+
+/** A canvas wired to a Mediabunny video track: draw on it, then `add` each frame. */
+async function openVideo(
   format: VideoExportFormat,
-  opts: EncodeAnimationOptions,
-): Promise<Blob> {
-  const steps = playbackSteps(opts)
-  const frames = steps.map((s) => s.frame)
-  const { background = '#000000' } = opts
-  if (!frames.length) {
-    throw new Error('Need at least one frame to encode video')
-  }
+  width: number,
+  height: number,
+  frameRate: number,
+  contextOptions?: CanvasRenderingContext2DSettings,
+): Promise<VideoSink> {
   if (!canEncodeVideoInBrowser()) {
     throw new Error('Video encoding needs a browser with WebCodecs (Chrome, Edge, or Safari)')
   }
 
-  const { outW, outH } = prepareEvenOutputSize(frames, opts.maxSize ?? 1080)
   const canvas = document.createElement('canvas')
-  canvas.width = outW
-  canvas.height = outH
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d', contextOptions)
   if (!ctx) throw new Error('Could not get canvas 2D context')
-
-  // Each frame carries its own hold, so the declared rate is the average over the whole loop.
-  const durations = steps.map((s) => Math.max(0.05, s.delayMs / 1000))
-  const avgDuration = durations.reduce((total, d) => total + d, 0) / durations.length
-  const frameRate = 1 / Math.max(0.05, avgDuration)
 
   const outputFormat =
     format === 'mp4' ? new Mp4OutputFormat() : new WebMOutputFormat()
@@ -101,7 +100,7 @@ export async function encodeVideoBlob(
 
   const videoCodec = await getFirstEncodableVideoCodec(
     output.format.getSupportedVideoCodecs(),
-    { width: outW, height: outH },
+    { width, height },
   )
   if (!videoCodec) {
     throw new Error(
@@ -119,22 +118,86 @@ export async function encodeVideoBlob(
 
   await output.start()
 
+  return {
+    canvas,
+    ctx,
+    add: (timestamp, duration, keyFrame) => canvasSource.add(timestamp, duration, { keyFrame }),
+    finish: async () => {
+      canvasSource.close()
+      await output.finalize()
+
+      const buffer = target.buffer
+      if (!buffer) throw new Error('Video encoding produced an empty file')
+
+      const mime = format === 'mp4' ? 'video/mp4' : 'video/webm'
+      return new Blob([buffer], { type: mime })
+    },
+  }
+}
+
+/** Encode discrete image frames to MP4 (H.264) or WebM via WebCodecs. */
+export async function encodeVideoBlob(
+  format: VideoExportFormat,
+  opts: EncodeAnimationOptions,
+): Promise<Blob> {
+  const steps = playbackSteps(opts)
+  const frames = steps.map((s) => s.frame)
+  const { background = '#000000' } = opts
+  if (!frames.length) {
+    throw new Error('Need at least one frame to encode video')
+  }
+
+  const { outW, outH } = prepareEvenOutputSize(frames, opts.maxSize ?? 1080)
+
+  // Each frame carries its own hold, so the declared rate is the average over the whole loop.
+  const durations = steps.map((s) => Math.max(0.05, s.delayMs / 1000))
+  const avgDuration = durations.reduce((total, d) => total + d, 0) / durations.length
+  const frameRate = 1 / Math.max(0.05, avgDuration)
+
+  const video = await openVideo(format, outW, outH, frameRate, { willReadFrequently: true })
+
   let timestamp = 0
   for (let i = 0; i < frames.length; i++) {
-    drawFrame(ctx, frames[i]!, outW, outH, background)
+    drawFrame(video.ctx, frames[i]!, outW, outH, background)
     const duration = durations[i]!
-    await canvasSource.add(timestamp, duration, {
-      keyFrame: i === 0 || i % Math.max(1, Math.round(frameRate * 2)) === 0,
-    })
+    await video.add(timestamp, duration, i === 0 || i % Math.max(1, Math.round(frameRate * 2)) === 0)
     timestamp += duration
   }
 
-  canvasSource.close()
-  await output.finalize()
+  return video.finish()
+}
 
-  const buffer = target.buffer
-  if (!buffer) throw new Error('Video encoding produced an empty file')
+export type TimelineVideoOptions = {
+  /** Size of the coordinate space `draw` paints in; the video rounds it down to even pixels. */
+  width: number
+  height: number
+  durationMs: number
+  fps: number
+  /** Paint the moment `timeMs` (the context is scaled to `width` × `height`). */
+  draw: (ctx: CanvasRenderingContext2D, timeMs: number) => void
+  /** Fraction of frames encoded so far, 0–1. */
+  onProgress?: (fraction: number) => void
+}
 
-  const mime = format === 'mp4' ? 'video/mp4' : 'video/webm'
-  return new Blob([buffer], { type: mime })
+/**
+ * Encode an animation drawn moment by moment at a constant frame rate. Each frame is drawn and
+ * encoded before the next, so a long video never holds more than one frame in memory.
+ */
+export async function encodeTimelineVideo(
+  format: VideoExportFormat,
+  opts: TimelineVideoOptions,
+): Promise<Blob> {
+  const width = Math.max(2, Math.round(opts.width) - (Math.round(opts.width) % 2))
+  const height = Math.max(2, Math.round(opts.height) - (Math.round(opts.height) % 2))
+  const frameCount = Math.max(1, Math.ceil((opts.durationMs / 1000) * opts.fps))
+  const keyEvery = Math.max(1, Math.round(opts.fps * 2))
+
+  const video = await openVideo(format, width, height, opts.fps)
+  for (let i = 0; i < frameCount; i++) {
+    video.ctx.setTransform(width / opts.width, 0, 0, height / opts.height, 0, 0)
+    opts.draw(video.ctx, (i * 1000) / opts.fps)
+    await video.add(i / opts.fps, 1 / opts.fps, i % keyEvery === 0)
+    opts.onProgress?.((i + 1) / frameCount)
+  }
+  return video.finish()
 }

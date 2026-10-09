@@ -700,6 +700,7 @@ select:focus-visible {
   padding: 0 8px;
   min-width: 56px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .play-btn {
@@ -974,6 +975,10 @@ select:focus-visible {
   .timeline-playhead {
     transition: none !important;
   }
+
+  .slide-strip-item.is-cutting .slide-thumb-frame {
+    animation: none !important;
+  }
 }
 
 /* The phone dock stacks the same control groups instead of hiding them behind a popover. */
@@ -1128,5 +1133,59 @@ select:focus-visible {
 
   .slide-strip {
     padding-inline: 14px;
+  }
+}
+
+/* ---------- collage tool ---------- */
+.collage-stage {
+  position: absolute;
+  /* The bottom inset keeps the preview clear of the floating playback bar. */
+  inset: 16px 16px 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.collage-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+
+.collage-scrub {
+  width: min(260px, 40vw);
+  accent-color: var(--accent);
+}
+
+.collage-thumb-status {
+  font: 10px var(--mono);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.collage-thumb-status.is-failed {
+  color: #c0392b;
+  border-color: currentColor;
+}
+
+/* The retry button stays visible, since a failed cutout needs attention. */
+.frame-thumb-actions .collage-retry {
+  display: inline-flex;
+}
+
+.slide-strip-item.is-cutting .slide-thumb-frame {
+  animation: collage-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes collage-pulse {
+  50% {
+    opacity: 0.45;
   }
 }

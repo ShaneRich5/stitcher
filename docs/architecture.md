@@ -11,6 +11,7 @@ src/
     __root.tsx                Root route -> RootLayout
     index.tsx                 /     -> StitcherEditor
     gif.tsx                   /gif  -> GifMaker
+    collage.tsx               /collage -> CollageMaker
   components/
     root-layout.tsx           App shell; each tool renders its own <AppNav> with its actions
     stitcher-editor.tsx       Carousel tool: state, handlers, keyboard, drag/drop, paste, export
@@ -24,9 +25,13 @@ src/
     gif-controls.tsx          Whole-animation controls (speed, size, format, style)
     frame-strip.tsx           Frame thumbnails; drag to reorder (default view)
     frame-timeline.tsx        Advanced view: frames sized by hold, ruler, playhead, per-frame timing
+    collage-maker.tsx         Collage tool: cutout queue, playback, keyboard, drag/drop, paste, export
+    collage-controls.tsx      Collage controls (format, export type, timing, overlay)
+    collage-strip.tsx         Photo thumbnails with cutout status; drag to reorder
   lib/
     carousel.ts               Doc helpers: makeLayer, zoom, relayout, slide add/remove
     gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay
+    collage.ts                CollageDoc helpers, timing, and drawCollageFrame (preview + export)
     image-registry.ts         imageId -> decoded image, object URL and source blob
     idb.ts, persist-project.ts  IndexedDB autosave of the carousel
     snap-guides.ts            Snap targets and snapBox()
@@ -35,11 +40,11 @@ src/
     export-carousel.ts        Slide/grid files, ZIP, Web Share
     use-editor-history.ts     Immutable undo/redo with coalescing
     use-slide-thumbnails.ts   Debounced thumbnails
-    encode-gif.ts, encode-video.ts   GIF and MP4/WebM encoders
-  types.ts                    Layer, CarouselDoc, FitMode, GifFrame
+    encode-gif.ts, encode-video.ts   GIF and MP4/WebM encoders (frame lists, or drawn timelines)
+  types.ts                    Layer, CarouselDoc, FitMode, GifFrame, CollageItem
 ```
 
-Both tools share one shell: `AppNav` actions, a `.split-bar` of controls, a `.workspace`, a
+All three tools share one shell: `AppNav` actions, a `.split-bar` of controls, a `.workspace`, a
 thumbnail strip, and a phone `.dock` with tabs. The styles live in `editor.css`.
 
 ## Data model
@@ -51,6 +56,9 @@ Layer { id, name, imageId, naturalWidth, naturalHeight,
 
 GifDoc { frames, delayMs, holdLastMs, maxSize, background, reverse, loopOnce, format }
 GifFrame { id, name, imageId, naturalWidth, naturalHeight, holdMs? }
+
+CollageDoc { items, width, height, stepMs, backgroundDelayMs, fadeMs, holdEndMs, overlay, dim, format }
+CollageItem { id, name, imageId, naturalWidth, naturalHeight, cutoutId: string | null, failed }
 ```
 
 - `delayMs` is the shared speed; a frame's optional `holdMs` overrides it for that frame alone.
@@ -71,6 +79,21 @@ GifFrame { id, name, imageId, naturalWidth, naturalHeight, holdMs? }
 - `fit` is `fill` (cover the row), `fit` (contain in the row) or `free` (placed by hand).
   Fill and fit layers rescale with the row when the slide count or format changes, through
   `relayout`. Free layers scale with the slide size and are dropped if left past the last slide.
+
+## Collage
+
+- Each item keeps two images: the photo (`imageId`) and its cutout (`cutoutId`), made by
+  `removeBackground` one photo at a time through a queue in `collage-maker.tsx`. The cutout is the
+  same size as the photo, and both are drawn into the same cover-fit box, so the subject sits
+  exactly where it was in its photo.
+- Item `i`'s subject starts at `i × stepMs` and fades in over `fadeMs`; its photo starts fading in
+  `backgroundDelayMs` later. Earlier subjects stay, so they stack. The video ends `holdEndMs`
+  after the last background is in (`collageDurationMs`).
+- `drawCollageFrame(ctx, doc, timeMs)` paints any moment. The preview canvas calls it on every
+  animation frame and the export calls it for every video frame, so they match.
+  `encodeTimelineVideo` draws and encodes one frame at a time at 30 fps, so a long video never
+  holds more than one frame in memory.
+- The collage isn't autosaved yet; like the GIF tool, its photos live in component state.
 
 ## Stage and export
 
