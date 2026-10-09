@@ -407,8 +407,13 @@ select:focus-visible {
   cursor: pointer;
 }
 
-.tool-btn:hover {
+.tool-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
+}
+
+.tool-btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
 }
 
 .tool-btn[aria-pressed='true'] {

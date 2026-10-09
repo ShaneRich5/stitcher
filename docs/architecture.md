@@ -1,7 +1,8 @@
 # Architecture
 
 Stitcher is a static single-page app. It has no backend, and all image work happens in the browser
-through Canvas, Konva and WebCodecs. It deploys to GitHub Pages on every push to `main`.
+through Canvas, Konva and WebCodecs, plus an in-browser segmentation model for background removal.
+It deploys to GitHub Pages on every push to `main`.
 
 ```
 src/
@@ -30,6 +31,7 @@ src/
     idb.ts, persist-project.ts  IndexedDB autosave of the carousel
     snap-guides.ts            Snap targets and snapBox()
     render-slide.ts           Canvas render of one slide from source pixels
+    remove-background.ts      Subject cutouts with RMBG-1.4 via Transformers.js, loaded on first use
     export-carousel.ts        Slide/grid files, ZIP, Web Share
     use-editor-history.ts     Immutable undo/redo with coalescing
     use-slide-thumbnails.ts   Debounced thumbnails
@@ -81,6 +83,23 @@ GifFrame { id, name, imageId, naturalWidth, naturalHeight, holdMs? }
   reversing, so a hold travels with its own frame, and adds `holdLastMs` to whichever step ends up
   last. Both encoders consume those steps: the GIF writes each step's `delay`, and the video
   passes each duration to `canvasSource.add`, declaring the loop's average as its frame rate.
+
+## Background removal
+
+"Remove background" in the image toolbar swaps the selected layer's photo for a cutout of its
+subject, as one undo step. `remove-background.ts` runs BRIA's RMBG-1.4 through Transformers.js:
+
+- Nothing loads until the first use. Then the Transformers.js chunk is imported, the model comes
+  from the Hugging Face Hub and the ONNX Runtime wasm from jsDelivr. The browser caches both, so
+  later uses (and reloads) don't download again.
+- With WebGPU it uses the fp16 model (88 MB, cleanest edges); otherwise, or if the GPU fails, the
+  8-bit model on the CPU (44 MB). The CPU path is single-threaded, because GitHub Pages can't send
+  the cross-origin isolation headers that threads need.
+- The mask is computed on a copy scaled to 1024 px, then stretched over the original pixels, so the
+  cutout is a full-resolution transparent PNG of the same size. It is registered as a new `imageId`,
+  which means autosave, the stage and export need nothing special for it.
+- RMBG-1.4 is licensed for **non-commercial use only**. That fits Stitcher being free with no
+  paywall; ads or a paid tier would need a licence from BRIA or a different model (`MODEL_ID`).
 
 ## State
 

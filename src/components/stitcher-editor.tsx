@@ -22,6 +22,7 @@ import {
 } from '../lib/export-carousel'
 import { imageFiles, loadImageFile } from '../lib/load-image'
 import { flushSave, loadProject, scheduleSave } from '../lib/persist-project'
+import { removeBackground } from '../lib/remove-background'
 import { useEditorHistory } from '../lib/use-editor-history'
 import { useMediaQuery } from '../lib/use-media-query'
 import { useSlideThumbnails } from '../lib/use-slide-thumbnails'
@@ -50,6 +51,8 @@ export function StitcherEditor() {
   const [exportFormat, setExportFormat] = useState<ImageFormat>('png')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  /** Progress text while a background is being removed; null when idle. */
+  const [cutoutStatus, setCutoutStatus] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const noticeTimer = useRef<number | undefined>(undefined)
@@ -147,6 +150,30 @@ export function StitcherEditor() {
     if (!selected) return
     const [img] = await loadAll([file])
     if (img) patchLayer(selected.id, (d, l) => replaceLayerImage(d, l, img))
+  }
+
+  /** Swap the selected layer's photo for a cutout of its subject. One undo step restores it. */
+  const removeSelectedBackground = async () => {
+    if (!selected || cutoutStatus) return
+    const { id: layerId, imageId, name } = selected
+    setCutoutStatus('Removing background…')
+    try {
+      const img = await removeBackground(imageId, name, (fraction) =>
+        setCutoutStatus(
+          fraction < 1 ? `Downloading the background remover… ${Math.round(fraction * 100)}%` : 'Removing background…',
+        ),
+      )
+      patchDoc((d) => {
+        // Leave the doc alone if the layer was deleted or its photo replaced in the meantime.
+        if (d.layers.find((l) => l.id === layerId)?.imageId !== imageId) return d
+        return { ...d, layers: d.layers.map((l) => (l.id === layerId ? replaceLayerImage(d, l, img) : l)) }
+      })
+    } catch (e) {
+      console.error(e)
+      say('Could not remove the background')
+    } finally {
+      setCutoutStatus(null)
+    }
   }
 
   const deleteSelected = () => {
@@ -260,6 +287,8 @@ export function StitcherEditor() {
       onFlip={() => patchLayer(selected.id, (_, l) => ({ ...l, flipX: !l.flipX }))}
       onToggleLock={() => patchLayer(selected.id, (_, l) => ({ ...l, lockAspect: !l.lockAspect }))}
       onReplace={(f) => void replaceFile(f)}
+      onRemoveBackground={() => void removeSelectedBackground()}
+      removingBackground={cutoutStatus !== null}
       onForward={() => patchDoc((d) => moveLayer(d, selected.id, 1))}
       onBackward={() => patchDoc((d) => moveLayer(d, selected.id, -1))}
       onDelete={deleteSelected}
@@ -407,9 +436,9 @@ export function StitcherEditor() {
         ) : null}
 
         {dragging ? <div className="drop-overlay">Drop to add</div> : null}
-        {notice ? (
+        {cutoutStatus || notice ? (
           <div className="toast" role="status">
-            {notice}
+            {cutoutStatus ?? notice}
           </div>
         ) : null}
       </div>

@@ -6,7 +6,7 @@ export type ImageFormat = 'png' | 'jpeg'
 
 export type SlideFile = { blob: Blob; filename: string }
 
-function toBlob(canvas: HTMLCanvasElement, format: ImageFormat): Promise<Blob> {
+export function toBlob(canvas: HTMLCanvasElement, format: ImageFormat): Promise<Blob> {
   const type = format === 'png' ? 'image/png' : 'image/jpeg'
   return new Promise((resolve, reject) => {
     canvas.toBlob(

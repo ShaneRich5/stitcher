@@ -25,6 +25,7 @@ export type IconName =
   | 'pause'
   | 'film'
   | 'copy'
+  | 'cutout'
 
 const PATHS: Record<IconName, ReactNode> = {
   undo: (
@@ -150,6 +151,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <rect x="9" y="9" width="12" height="12" rx="2" />
       <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+    </>
+  ),
+  cutout: (
+    <>
+      <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" />
+      <circle cx="12" cy="10" r="2.5" />
+      <path d="M7.5 17a4.5 4.5 0 0 1 9 0" />
     </>
   ),
 }

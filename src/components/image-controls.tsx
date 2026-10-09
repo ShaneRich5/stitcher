@@ -15,6 +15,9 @@ type Props = {
   onFlip: () => void
   onToggleLock: () => void
   onReplace: (file: File) => void
+  onRemoveBackground: () => void
+  /** True while a cutout is being made, which disables the button. */
+  removingBackground: boolean
   onForward: () => void
   onBackward: () => void
   onDelete: () => void
@@ -32,12 +35,14 @@ function ToolButton({
   onClick,
   danger,
   pressed,
+  disabled,
 }: {
   icon: IconName
   label: string
   onClick: () => void
   danger?: boolean
   pressed?: boolean
+  disabled?: boolean
 }) {
   return (
     <button
@@ -46,6 +51,7 @@ function ToolButton({
       title={label}
       aria-label={label}
       aria-pressed={pressed}
+      disabled={disabled}
       onClick={onClick}
     >
       <Icon name={icon} />
@@ -66,6 +72,8 @@ export function ImageControls({
   onFlip,
   onToggleLock,
   onReplace,
+  onRemoveBackground,
+  removingBackground,
   onForward,
   onBackward,
   onDelete,
@@ -130,6 +138,12 @@ export function ImageControls({
         />
         <ToolButton icon="forward" label="Bring forward" onClick={onForward} />
         <ToolButton icon="backward" label="Send backward" onClick={onBackward} />
+        <ToolButton
+          icon="cutout"
+          label={removingBackground ? 'Removing background…' : 'Remove background'}
+          onClick={onRemoveBackground}
+          disabled={removingBackground}
+        />
         <input
           ref={replaceRef}
           type="file"
