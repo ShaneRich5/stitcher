@@ -23,9 +23,11 @@ import {
   zipSlideFiles,
   type ImageFormat,
 } from '../lib/export-carousel'
+import type { PickerStatus, SubjectChoice, SubjectPoint } from '../lib/choose-subject'
+import { facesOnEdges, nudgeOffEdges, type FaceMap } from '../lib/face-edges'
 import { imageFiles, loadImageFile } from '../lib/load-image'
 import { flushSave, loadProject, scheduleSave } from '../lib/persist-project'
-import { removeBackground } from '../lib/remove-background'
+import { cutoutFromMask, removeBackground, type Cutout } from '../lib/remove-background'
 import { useEditorHistory } from '../lib/use-editor-history'
 import { useMediaQuery } from '../lib/use-media-query'
 import { useSlideThumbnails } from '../lib/use-slide-thumbnails'
@@ -34,17 +36,36 @@ import { AppNav } from './app-nav'
 import { CarouselControls } from './carousel-controls'
 import { CarouselStage } from './carousel-stage'
 import { Icon } from './icons'
-import { ImageControls, type CutoutMode } from './image-controls'
+import { ImageControls, SubjectPicker, type CutoutMode } from './image-controls'
 import { SlideStrip } from './slide-strip'
 import { SwipePreview } from './swipe-preview'
 
 const NUDGE = 4
 /** How much Portrait blurs the photo behind its subject, in world pixels. */
 const PORTRAIT_BLUR = 16
+/** Faces are looked for this long after the images settle, so loading photos comes first. */
+const FACE_CHECK_DELAY = 800
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable
+}
+
+/** Choosing the subject to cut out of one layer's photo by tapping it. */
+type Picking = {
+  layerId: string
+  imageId: string
+  points: SubjectPoint[]
+  /** The subject the taps pick, once the models have answered; null before the first tap. */
+  choice: SubjectChoice | null
+  /** True while the models are working on the latest taps. */
+  working: boolean
+}
+
+function pickerMessage(status: PickerStatus): string {
+  if (status.step === 'reading') return 'Reading the photo…'
+  const what = status.model === 'picker' ? 'subject picker' : 'background remover'
+  return status.fraction < 1 ? `Downloading the ${what}… ${Math.round(status.fraction * 100)}%` : 'Reading the photo…'
 }
 
 export function StitcherEditor() {
@@ -60,6 +81,14 @@ export function StitcherEditor() {
   const [cutoutStatus, setCutoutStatus] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  /** Faces found so far, per image. Images not in here haven't been searched yet. */
+  const [faces, setFaces] = useState<FaceMap>({})
+  const [picking, setPicking] = useState<Picking | null>(null)
+  /** Loading text while the subject picker opens; null once it's ready. */
+  const [pickerStatus, setPickerStatus] = useState<string | null>(null)
+  const pickerOpen = useRef<Promise<void> | null>(null)
+  /** Counts subject requests, so a slow answer to older taps can't replace a newer one. */
+  const pickRequest = useRef(0)
   const noticeTimer = useRef<number | undefined>(undefined)
   const isPhone = useMediaQuery('(max-width: 820px)')
   const canShare = canShareFiles()
@@ -69,6 +98,14 @@ export function StitcherEditor() {
   const thumbs = useSlideThumbnails(doc, 96)
   const hasImages = doc.layers.length > 0
   const showImageTab = isPhone && selected !== null && dockTab === 'image'
+  // Picking ends by itself if its layer is deselected, deleted or given another photo.
+  const activePick =
+    picking && selected?.id === picking.layerId && selected.imageId === picking.imageId ? picking : null
+  const selectedFacesOnEdge = selected
+    ? facesOnEdges(doc, faces).filter((m) => m.layerId === selected.id).length
+    : 0
+  const imageKey = [...new Set(doc.layers.map((l) => l.imageId))].join('|')
+  const checkFaces = hydrated && doc.count > 1
 
   // Restore the last autosaved project once, then let the autosave effect below take over. The
   // restore bypasses undo history (`reset`) since it isn't a user edit.
@@ -97,6 +134,31 @@ export function StitcherEditor() {
     }
   }, [])
 
+  // Look for faces in each new image, once, so faces on a slide edge can be flagged. It only runs
+  // when the set of images changes, never during drags; moving a layer just re-maps the boxes.
+  useEffect(() => {
+    if (!checkFaces || !imageKey) return
+    let live = true
+    const timer = window.setTimeout(async () => {
+      const { detectFaces } = await import('../lib/detect-faces')
+      for (const id of imageKey.split('|')) {
+        if (!live) return
+        try {
+          const boxes = await detectFaces(id)
+          if (live) setFaces((f) => (f[id] ? f : { ...f, [id]: boxes }))
+        } catch (e) {
+          // Most likely the detector couldn't load (offline); try again when the images change.
+          console.error(e)
+          return
+        }
+      }
+    }, FACE_CHECK_DELAY)
+    return () => {
+      live = false
+      window.clearTimeout(timer)
+    }
+  }, [checkFaces, imageKey])
+
   const say = (message: string) => {
     setNotice(message)
     window.clearTimeout(noticeTimer.current)
@@ -115,6 +177,7 @@ export function StitcherEditor() {
   const select = (id: string | null) => {
     setSelectedId(id)
     if (id) setDockTab('image')
+    if (id !== picking?.layerId) setPicking(null)
   }
 
   const loadAll = async (files: File[]) => {
@@ -158,10 +221,37 @@ export function StitcherEditor() {
   }
 
   /**
-   * Cut the selected photo's subject out, trimmed to it and placed exactly over where it was.
+   * Place a cutout of a layer's photo (trimmed to its subject) exactly over where it was.
    * `replace` swaps the photo for it; `layer` keeps the photo and adds the subject above it;
    * `portrait` does the same and blurs the photo. Each is one undo step.
    */
+  const placeCutout = (layerId: string, imageId: string, cutout: Cutout, mode: CutoutMode) => {
+    const subjectId = crypto.randomUUID()
+    let placed = false
+    patchDoc((d) => {
+      // Leave the doc alone if the layer was deleted or its photo replaced in the meantime.
+      const original = d.layers.find((l) => l.id === layerId)
+      if (original?.imageId !== imageId) return d
+      placed = true
+      const subject = cropLayerImage(original, cutout, cutout.crop)
+      if (mode === 'replace') {
+        return { ...d, layers: d.layers.map((l) => (l.id === layerId ? subject : l)) }
+      }
+      // A new layer starts plain: the photo's effects were meant for the photo.
+      const added = insertLayerAbove(d, layerId, {
+        ...subject,
+        id: subjectId,
+        outline: undefined,
+        shadow: undefined,
+        blur: undefined,
+      })
+      if (mode === 'layer') return added
+      return { ...added, layers: added.layers.map((l) => (l.id === layerId ? { ...l, blur: PORTRAIT_BLUR } : l)) }
+    })
+    if (placed && mode !== 'replace') select(subjectId)
+  }
+
+  /** Cut the selected photo's subject out and place it with `placeCutout`. */
   const cutOutSelected = async (mode: CutoutMode) => {
     if (!selected || cutoutStatus) return
     const { id: layerId, imageId, name } = selected
@@ -176,35 +266,94 @@ export function StitcherEditor() {
           ),
         { trim: true },
       )
-      const subjectId = crypto.randomUUID()
-      let placed = false
-      patchDoc((d) => {
-        // Leave the doc alone if the layer was deleted or its photo replaced in the meantime.
-        const original = d.layers.find((l) => l.id === layerId)
-        if (original?.imageId !== imageId) return d
-        placed = true
-        const subject = cropLayerImage(original, cutout, cutout.crop)
-        if (mode === 'replace') {
-          return { ...d, layers: d.layers.map((l) => (l.id === layerId ? subject : l)) }
-        }
-        // A new layer starts plain: the photo's effects were meant for the photo.
-        const added = insertLayerAbove(d, layerId, {
-          ...subject,
-          id: subjectId,
-          outline: undefined,
-          shadow: undefined,
-          blur: undefined,
-        })
-        if (mode === 'layer') return added
-        return { ...added, layers: added.layers.map((l) => (l.id === layerId ? { ...l, blur: PORTRAIT_BLUR } : l)) }
-      })
-      if (placed && mode !== 'replace') select(subjectId)
+      placeCutout(layerId, imageId, cutout, mode)
     } catch (e) {
       console.error(e)
       say('Could not remove the background')
     } finally {
       setCutoutStatus(null)
     }
+  }
+
+  /** Start choosing the selected photo's subject by tapping it. The models load meanwhile. */
+  const startPicking = async () => {
+    if (!selected || cutoutStatus) return
+    const { id: layerId, imageId } = selected
+    pickRequest.current++
+    setPicking({ layerId, imageId, points: [], choice: null, working: false })
+    setPickerStatus('Loading the subject picker…')
+    const opening = import('../lib/choose-subject').then(({ openSubjectPicker }) =>
+      openSubjectPicker(imageId, (s) => setPickerStatus(pickerMessage(s))),
+    )
+    pickerOpen.current = opening
+    try {
+      await opening
+    } catch (e) {
+      console.error(e)
+      say('Could not load the subject picker')
+      setPicking((p) => (p?.imageId === imageId ? null : p))
+    } finally {
+      if (pickerOpen.current === opening) setPickerStatus(null)
+    }
+  }
+
+  /** Ask the models for the subject these taps point at; the newest request wins. */
+  const updatePick = async (pick: Picking, points: SubjectPoint[]) => {
+    const request = ++pickRequest.current
+    const current = (p: Picking | null) => p?.layerId === pick.layerId && p.imageId === pick.imageId
+    setPicking({ ...pick, points, choice: points.length ? pick.choice : null, working: points.length > 0 })
+    if (!points.length) return
+    try {
+      await pickerOpen.current
+    } catch {
+      return // Already reported by startPicking.
+    }
+    try {
+      const { chooseSubject } = await import('../lib/choose-subject')
+      const choice = await chooseSubject(pick.imageId, points)
+      if (request === pickRequest.current) setPicking((p) => (current(p) ? { ...p!, choice, working: false } : p))
+    } catch (e) {
+      console.error(e)
+      if (request !== pickRequest.current) return
+      say('Could not find a subject there')
+      setPicking((p) => (current(p) ? { ...p!, working: false } : p))
+    }
+  }
+
+  const addPickPoint = (point: SubjectPoint) => {
+    if (activePick) void updatePick(activePick, [...activePick.points, point])
+  }
+
+  const undoPickPoint = () => {
+    if (activePick?.points.length) void updatePick(activePick, activePick.points.slice(0, -1))
+  }
+
+  const cancelPicking = () => {
+    pickRequest.current++
+    setPicking(null)
+  }
+
+  const confirmPick = async (mode: CutoutMode) => {
+    if (!activePick?.choice || activePick.working || !selected || cutoutStatus) return
+    const { layerId, imageId, choice } = activePick
+    cancelPicking()
+    setCutoutStatus('Cutting out…')
+    try {
+      const cutout = await cutoutFromMask(imageId, selected.name, choice.mask, { trim: true })
+      placeCutout(layerId, imageId, cutout, mode)
+    } catch (e) {
+      console.error(e)
+      say('Could not cut out that subject')
+    } finally {
+      setCutoutStatus(null)
+    }
+  }
+
+  const nudgeSelected = () => {
+    if (!selected) return
+    const moved = nudgeOffEdges(doc, selected, faces)
+    if (!moved) return say("Can't clear these faces with a small move. Try zooming out or moving the photo.")
+    patchLayer(selected.id, () => moved)
   }
 
   const duplicateSelected = () => {
@@ -248,6 +397,16 @@ export function StitcherEditor() {
     if (isTypingTarget(e.target) || previewOpen) return
     const mod = e.ctrlKey || e.metaKey
     const key = e.key.toLowerCase()
+    if (activePick) {
+      // While choosing a subject, undo takes back a tap and nothing else edits the doc.
+      if (e.key === 'Escape') {
+        cancelPicking()
+      } else if (mod && key === 'z') {
+        e.preventDefault()
+        undoPickPoint()
+      }
+      return
+    }
     if (mod && key === 'z') {
       e.preventDefault()
       if (e.shiftKey) redo()
@@ -316,7 +475,17 @@ export function StitcherEditor() {
     />
   )
 
-  const imageControls = selected ? (
+  const imageControls = activePick ? (
+    <SubjectPicker
+      variant={isPhone ? 'sheet' : 'toolbar'}
+      status={pickerStatus ?? (activePick.working ? 'Finding the subject…' : null)}
+      points={activePick.points.length}
+      canConfirm={activePick.choice !== null && !activePick.working}
+      onUndo={undoPickPoint}
+      onCancel={cancelPicking}
+      onConfirm={(mode) => void confirmPick(mode)}
+    />
+  ) : selected ? (
     <ImageControls
       layer={selected}
       zoom={layerZoom(doc, selected)}
@@ -332,7 +501,10 @@ export function StitcherEditor() {
       onReplace={(f) => void replaceFile(f)}
       onDuplicate={duplicateSelected}
       onCutout={(mode) => void cutOutSelected(mode)}
+      onChooseSubject={() => void startPicking()}
       removingBackground={cutoutStatus !== null}
+      facesOnEdge={selectedFacesOnEdge}
+      onNudge={nudgeSelected}
       onEffects={(patch, coalesce) =>
         patchLayer(selected.id, (_, l) => ({ ...l, ...patch }), coalesce && `${coalesce}-${selected.id}`)
       }
@@ -406,6 +578,13 @@ export function StitcherEditor() {
             doc={doc}
             selectedId={selectedId}
             activeSlide={activeSlide}
+            faces={faces}
+            picking={
+              activePick
+                ? { layerId: activePick.layerId, points: activePick.points, overlay: activePick.choice?.overlay ?? null }
+                : null
+            }
+            onPick={addPickPoint}
             onSelect={select}
             onBackgroundPress={(i) => {
               setSelectedId(null)
@@ -450,6 +629,7 @@ export function StitcherEditor() {
           onSelect={(i) => {
             setActiveSlide(i)
             setSelectedId(null)
+            setPicking(null)
           }}
           onAdd={() => patchDoc((d) => setSlideCount(d, d.count + 1))}
           onRemove={(i) => patchDoc((d) => removeSlide(d, i))}

@@ -25,11 +25,14 @@ Everything runs on your device. There's no account, no upload, no watermark and 
   arrow keys nudge.
 - **Cut out** a photo's subject on your device: remove the background, cut it out to a new layer
   over the untouched photo, or **Portrait** to blur the photo behind a sharp subject. Cutouts are
-  trimmed to the subject without moving it.
+  trimmed to the subject without moving it. When a photo has several subjects, **Choose subject**
+  lets you tap the one to keep (Shift-click or long-press takes a part away) before cutting it out.
 - **Effects** per image: an outline and a drop shadow that follow a cutout's edge (the sticker
   look), and blur.
 - A **low resolution** warning in the toolbar and on the affected slides when a photo is stretched
   more than 1.5× and would export soft.
+- **Faces on a slide edge** are marked on the canvas, since a face cut in half looks broken when the
+  post is seen one slide at a time. **Nudge** moves the photo just enough to clear them.
 - **Snapping** to slide edges, centers and grid-cut lines.
 - **Background** swatches or a custom color, or transparent.
 - **Grid cut**: slice each slide into up to 4 x 4 cells (for profile-grid posts).
@@ -68,6 +71,8 @@ Everything runs on your device. There's no account, no upload, no watermark and 
   that photo fades in behind the stack as the new background.
 - **Timing** under "Style": time per photo, how long until the background comes in, fade length
   and a hold at the end.
+- **Parallax** under "Style": each subject pushes in ahead of its background, so the stills move
+  with a sense of depth. Turn it down, or off, from the same slider.
 - **Overlay** color: shown before the first photo, and dims the backgrounds so the subjects stand
   out.
 - **Photo strip**: drag to reorder the stack, remove a photo, retry a cutout that failed, or click a

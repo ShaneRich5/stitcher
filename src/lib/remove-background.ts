@@ -13,7 +13,7 @@ const MODEL_ID = 'briaai/RMBG-1.4'
 /** The model sees a 1024 × 1024 input, so bigger photos are scaled down before inference. */
 const INFERENCE_MAX = 1024
 /** Mask values below this (of 255) count as background, which clears faint specks. */
-const ALPHA_FLOOR = 16
+export const ALPHA_FLOOR = 16
 /** Kept around a trimmed subject, in source pixels, on top of the mask's own stretch. */
 const TRIM_PAD = 4
 
@@ -50,6 +50,9 @@ function getPipeline(backend: Backend, onDownload?: (fraction: number) => void) 
   return current.pipe
 }
 
+/** One channel, 0 (background) to 255 (subject), over the scaled-down copy the models see. */
+export type Mask = { data: Uint8Array | Uint8ClampedArray; width: number; height: number }
+
 async function segment(input: RawImage, onDownload?: (fraction: number) => void): Promise<RawImage> {
   const backend = !webgpuFailed && 'gpu' in navigator ? WEBGPU : WASM
   try {
@@ -65,22 +68,34 @@ async function segment(input: RawImage, onDownload?: (fraction: number) => void)
   }
 }
 
-function drawScaled(source: CanvasImageSource, width: number, height: number): HTMLCanvasElement {
+/** RMBG's subject mask for an image the size of `input`. */
+export async function subjectMask(input: RawImage, onDownload?: (fraction: number) => void): Promise<Mask> {
+  const raw = await segment(input, onDownload)
+  const data = new Uint8Array(raw.width * raw.height)
+  for (let i = 0; i < data.length; i++) data[i] = raw.data[i * raw.channels]!
+  return { data, width: raw.width, height: raw.height }
+}
+
+/** The source drawn at most INFERENCE_MAX on its long edge, as the models see it. */
+export function inferenceCopy(source: HTMLImageElement): HTMLCanvasElement {
+  const width = source.naturalWidth || source.width
+  const height = source.naturalHeight || source.height
+  const scale = Math.min(1, INFERENCE_MAX / Math.max(width, height))
   const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
+  canvas.width = Math.max(1, Math.round(width * scale))
+  canvas.height = Math.max(1, Math.round(height * scale))
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas is not available')
   ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(source, 0, 0, width, height)
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
   return canvas
 }
 
-/** The model's grayscale mask as the alpha channel of an otherwise empty canvas. */
-function maskCanvas(mask: RawImage): HTMLCanvasElement {
+/** A mask as the alpha channel of an otherwise empty canvas. */
+function maskCanvas(mask: Mask): HTMLCanvasElement {
   const pixels = new ImageData(mask.width, mask.height)
   for (let i = 0; i < mask.width * mask.height; i++) {
-    const alpha = mask.data[i * mask.channels]!
+    const alpha = mask.data[i]!
     pixels.data[i * 4 + 3] = alpha < ALPHA_FLOOR ? 0 : alpha
   }
   const canvas = document.createElement('canvas')
@@ -91,14 +106,14 @@ function maskCanvas(mask: RawImage): HTMLCanvasElement {
 }
 
 /** The smallest box around the pixels the mask keeps, in mask pixels; null when it keeps none. */
-function maskBounds(mask: RawImage): Box | null {
+function maskBounds(mask: Mask): Box | null {
   let x0 = mask.width
   let y0 = mask.height
   let x1 = -1
   let y1 = -1
   for (let y = 0; y < mask.height; y++) {
     for (let x = 0; x < mask.width; x++) {
-      if (mask.data[(y * mask.width + x) * mask.channels]! < ALPHA_FLOOR) continue
+      if (mask.data[y * mask.width + x]! < ALPHA_FLOOR) continue
       if (x < x0) x0 = x
       if (x > x1) x1 = x
       if (y < y0) y0 = y
@@ -113,7 +128,7 @@ function maskBounds(mask: RawImage): Box | null {
  * over the source with high-quality smoothing, whose kernel can spread its edge a couple of mask
  * pixels further, so the pad covers three.
  */
-function trimBox(mask: RawImage, width: number, height: number): Box {
+function trimBox(mask: Mask, width: number, height: number): Box {
   const bounds = maskBounds(mask)
   if (!bounds) return { x: 0, y: 0, width, height }
   const sx = width / mask.width
@@ -146,13 +161,22 @@ export async function removeBackground(
 ): Promise<Cutout> {
   const source = getImage(imageId)?.image
   if (!source) throw new Error('That image is no longer loaded')
+  const { RawImage } = await import('@huggingface/transformers')
+  const mask = await subjectMask(RawImage.fromCanvas(inferenceCopy(source)), onDownload)
+  return cutoutFromMask(imageId, name, mask, { trim })
+}
+
+/** Register the part of a registered image that `mask` keeps (any size) as a cutout, as above. */
+export async function cutoutFromMask(
+  imageId: string,
+  name: string,
+  mask: Mask,
+  { trim = false }: { trim?: boolean } = {},
+): Promise<Cutout> {
+  const source = getImage(imageId)?.image
+  if (!source) throw new Error('That image is no longer loaded')
   const width = source.naturalWidth || source.width
   const height = source.naturalHeight || source.height
-
-  const { RawImage } = await import('@huggingface/transformers')
-  const scale = Math.min(1, INFERENCE_MAX / Math.max(width, height))
-  const small = drawScaled(source, Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale)))
-  const mask = await segment(RawImage.fromCanvas(small), onDownload)
   const crop = trim ? trimBox(mask, width, height) : { x: 0, y: 0, width, height }
 
   // Draw the mask and the photo over the full source size, shifted so only the crop lands.

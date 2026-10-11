@@ -1,7 +1,8 @@
 # Architecture
 
 Stitcher is a static single-page app. It has no backend, and all image work happens in the browser
-through Canvas, Konva and WebCodecs, plus an in-browser segmentation model for background removal.
+through Canvas, Konva and WebCodecs, plus in-browser models for background removal, choosing a
+subject, and finding faces.
 It deploys to GitHub Pages on every push to `main`.
 
 ```
@@ -37,6 +38,9 @@ src/
     snap-guides.ts            Snap targets and snapBox()
     render-slide.ts           Canvas render of one slide from source pixels
     remove-background.ts      Subject cutouts with RMBG-1.4 via Transformers.js, loaded on first use
+    choose-subject.ts         Tap to choose the subject: SlimSAM picks which part of RMBG's mask to keep
+    detect-faces.ts           Face boxes per image with MediaPipe's BlazeFace, loaded on first use
+    face-edges.ts             Faces a slide edge splits, and the Nudge that clears them (DOM-free)
     layer-effects.ts          Outline, shadow and blur, drawn the same on the stage and in export
     export-carousel.ts        Slide/grid files, ZIP, Web Share
     use-editor-history.ts     Immutable undo/redo with coalescing
@@ -59,7 +63,7 @@ Layer { id, name, imageId, naturalWidth, naturalHeight,
 GifDoc { frames, delayMs, holdLastMs, maxSize, background, reverse, loopOnce, format }
 GifFrame { id, name, imageId, naturalWidth, naturalHeight, holdMs? }
 
-CollageDoc { items, width, height, stepMs, backgroundDelayMs, fadeMs, holdEndMs, overlay, dim, format }
+CollageDoc { items, width, height, stepMs, backgroundDelayMs, fadeMs, holdEndMs, overlay, dim, parallax, format }
 CollageItem { id, name, imageId, naturalWidth, naturalHeight, cutoutId: string | null, failed }
 ```
 
@@ -91,6 +95,12 @@ CollageItem { id, name, imageId, naturalWidth, naturalHeight, cutoutId: string |
 - Item `i`'s subject starts at `i × stepMs` and fades in over `fadeMs`; its photo starts fading in
   `backgroundDelayMs` later. Earlier subjects stay, so they stack. The video ends `holdEndMs`
   after the last background is in (`collageDurationMs`).
+- **Parallax** treats each photo and its cutout as two planes. From its subject appearing until the
+  next background has covered its own, both zoom in around the subject's center (the centroid of
+  the cutout's alpha, read once per cutout), the subject three times as far as the photo, so it
+  seems nearer the camera. The photo still holds the subject and nothing fills the gap, so the moves
+  stay small (at most 4% and 12%, times `parallax`); growing around the subject's center means the
+  cutout covers its own ghost instead of sliding off it. No depth model is needed for this.
 - `drawCollageFrame(ctx, doc, timeMs)` paints any moment. The preview canvas calls it on every
   animation frame and the export calls it for every video frame, so they match.
   `encodeTimelineVideo` draws and encodes one frame at a time at 30 fps, so a long video never
@@ -153,6 +163,45 @@ smaller image. The collage doesn't trim: it draws each cutout over its own photo
   which means autosave, the stage and export need nothing special for it.
 - RMBG-1.4 is licensed for **non-commercial use only**. That fits Stitcher being free with no
   paywall; ads or a paid tier would need a licence from BRIA or a different model (`MODEL_ID`).
+
+### Choosing the subject
+
+RMBG cuts out everything prominent as one piece, so two people come out together. **Choose
+subject** (`choose-subject.ts`) lets you tap the one you want, with SlimSAM (`Xenova/slimsam-77-uniform`,
+Apache-2.0; 21 MB fp16 on WebGPU, 14 MB 8-bit on the CPU) loaded the same lazy way:
+
+- Opening the picker runs SAM's image encoder and RMBG once on the same scaled copy, so their masks
+  line up pixel for pixel. Each tap after that only runs SAM's small prompt decoder (about a second
+  on the CPU). The stage turns a tap into image pixels through the layer's transform
+  (`worldToImage`); Shift-click or a long press adds it as a point to take away.
+- SAM returns three masks per prompt, from a small part to the whole object. A tap on a shirt can
+  score the printed logo a touch above the person, so the largest mask within 0.1 of the best score
+  wins.
+- SAM's mask is coarse and blotchy, so it only chooses: its confidence is smoothed and cut low (a
+  soft step from 0.1 to 0.2), and RMBG's alpha is kept under it. The edges are RMBG's, as clean as
+  Remove background. Where RMBG found almost none of SAM's pick (a subject it didn't treat as
+  prominent), SAM's own mask is used, with coarser edges.
+- The preview tints the choice and dims the rest. Confirming hands the mask to `cutoutFromMask`,
+  the same trim-and-register step Remove background uses, then places it like the other cutouts.
+
+## Faces on slide edges
+
+A face split by a slide edge looks broken when the post is seen one slide at a time.
+`detect-faces.ts` finds faces once per image with MediaPipe's BlazeFace (short range), cached by
+`imageId`. The editor asks for each new image a moment after the images change (and only with two or
+more slides), never during drags.
+
+- BlazeFace sees a 128 px input, which loses the small faces of a group photo, so each image is
+  searched whole and in overlapping square tiles of 1/2 and 1/4 of its short side. Hits against an
+  inner tile side are dropped (a neighboring tile has the whole face) and overlaps are merged.
+- MediaPipe's wasm ships with the app through Vite `?url` imports, so it always matches the package
+  (about 3.9 MB gzipped, fetched on first use); the 230 KB model comes from Google's model storage.
+- `face-edges.ts` maps the boxes through each layer (`imageBoxToWorld`) and flags any that a slide
+  edge (x = k × slideW) cuts more than 12% into. The stage re-maps them live while a layer is
+  dragged or transformed, so a mark follows it and clears when the face does.
+- **Nudge** tries putting each face side just past each edge and keeps the smallest move that
+  splits the fewest faces, as one undo step. A layer that covered an end of the row keeps covering
+  it: rather than open a gap, the move pins that end and zooms in just enough.
 
 ## State
 

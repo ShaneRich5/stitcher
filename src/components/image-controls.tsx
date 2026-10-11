@@ -24,8 +24,14 @@ type Props = {
   onReplace: (file: File) => void
   onDuplicate: () => void
   onCutout: (mode: CutoutMode) => void
+  /** Start tapping the subject to cut out, for a photo with more than one. */
+  onChooseSubject: () => void
   /** True while a cutout is being made, which disables the cutout actions. */
   removingBackground: boolean
+  /** How many of this image's faces a slide edge runs through. */
+  facesOnEdge: number
+  /** Move the image just enough to take its faces off the slide edges. */
+  onNudge: () => void
   /** `coalesce` names a slider or picker, so dragging it is one undo step. */
   onEffects: (patch: EffectsPatch, coalesce?: string) => void
   onForward: () => void
@@ -98,7 +104,10 @@ export function ImageControls({
   onReplace,
   onDuplicate,
   onCutout,
+  onChooseSubject,
   removingBackground,
+  facesOnEdge,
+  onNudge,
   onEffects,
   onForward,
   onBackward,
@@ -114,26 +123,34 @@ export function ImageControls({
     `${px(layer.width)} × ${px(layer.height)} px, so it will look soft when exported. ` +
     'Zoom it out or use a larger photo.'
 
+  const faceDetail =
+    'A slide edge runs through this face, so it will look cut in half when the post is seen one slide ' +
+    'at a time. Nudge moves the photo just enough to clear it.'
+
   const cutoutLabel = removingBackground ? 'Removing background…' : 'Cut out'
-  const cutoutActions = CUTOUT_OPTIONS.map((o) => (
+  const menuItem = (key: string, icon: IconName, label: string, hint: string, onClick: () => void) => (
     <button
-      key={o.mode}
+      key={key}
       type="button"
       className="tool-btn tool-menu-item"
-      title={o.hint}
+      title={hint}
       disabled={removingBackground}
       onClick={() => {
         if (cutoutMenuRef.current) cutoutMenuRef.current.open = false
-        onCutout(o.mode)
+        onClick()
       }}
     >
-      <Icon name={o.icon} />
+      <Icon name={icon} />
       <span className="tool-menu-text">
-        <span>{o.label}</span>
-        {isSheet ? null : <small>{o.hint}</small>}
+        <span>{label}</span>
+        {isSheet ? null : <small>{hint}</small>}
       </span>
     </button>
-  ))
+  )
+  const cutoutActions = [
+    ...CUTOUT_OPTIONS.map((o) => menuItem(o.mode, o.icon, o.label, o.hint, () => onCutout(o.mode))),
+    menuItem('choose', 'target', 'Choose subject…', 'Tap the one to cut out, when there are several', onChooseSubject),
+  ]
 
   const { outline, shadow } = layer
   const blur = layer.blur ?? 0
@@ -257,6 +274,19 @@ export function ImageControls({
         </span>
       ) : null}
 
+      {facesOnEdge ? (
+        <span className="low-res-note" title={faceDetail}>
+          <Icon name="alert" size={14} />
+          <span>
+            {facesOnEdge === 1 ? 'Face on a slide edge' : `${facesOnEdge} faces on slide edges`}
+            {isSheet ? <small>{faceDetail}</small> : null}
+          </span>
+          <button type="button" className="note-btn" onClick={onNudge}>
+            Nudge
+          </button>
+        </span>
+      ) : null}
+
       <div className="segmented" role="group" aria-label="Fit">
         {FIT_OPTIONS.map((o) => (
           <button
@@ -350,6 +380,52 @@ export function ImageControls({
           {effects}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+type PickerProps = {
+  variant: 'toolbar' | 'sheet'
+  /** Loading or working text; null while it waits for taps. */
+  status: string | null
+  /** Taps so far. */
+  points: number
+  /** True once there's a subject to cut out. */
+  canConfirm: boolean
+  onUndo: () => void
+  onCancel: () => void
+  onConfirm: (mode: CutoutMode) => void
+}
+
+/** Shown in place of the image controls while the subject to cut out is being tapped. */
+export function SubjectPicker({ variant, status, points, canConfirm, onUndo, onCancel, onConfirm }: PickerProps) {
+  const hint = points
+    ? 'Tap to add more. Shift-click or long-press takes a part away.'
+    : 'Tap the subject you want to keep.'
+  return (
+    <div className={`image-controls subject-picker is-${variant}`} role="toolbar" aria-label="Choose subject">
+      <span className="picker-hint" aria-live="polite">
+        {status ?? hint}
+      </span>
+      <div className="tool-row">
+        <ToolButton icon="undo" label="Undo tap" onClick={onUndo} disabled={!points} />
+        <ToolButton icon="close" label="Cancel" onClick={onCancel} />
+      </div>
+      <div className="tool-row">
+        {CUTOUT_OPTIONS.map((o) => (
+          <button
+            key={o.mode}
+            type="button"
+            className="picker-action"
+            title={o.hint}
+            disabled={!canConfirm}
+            onClick={() => onConfirm(o.mode)}
+          >
+            <Icon name={o.icon} />
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

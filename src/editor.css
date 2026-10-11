@@ -523,6 +523,55 @@ select:focus-visible {
   align-items: flex-start;
 }
 
+.note-btn {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: 600 12px var(--sans);
+  cursor: pointer;
+}
+
+.note-btn:hover {
+  background: rgba(251, 191, 36, 0.18);
+}
+
+.picker-hint {
+  font-size: 13px;
+}
+
+.image-controls.is-toolbar .picker-hint {
+  max-width: 260px;
+}
+
+.picker-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font: 13px var(--sans);
+  cursor: pointer;
+}
+
+.picker-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.picker-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.stage.is-picking canvas {
+  cursor: crosshair;
+}
+
 .slide-strip {
   padding: 10px 20px 12px;
   border-top: 1px solid var(--border);

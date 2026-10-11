@@ -30,6 +30,7 @@ export type IconName =
   | 'sparkle'
   | 'alert'
   | 'aperture'
+  | 'target'
 
 const PATHS: Record<IconName, ReactNode> = {
   undo: (
@@ -193,6 +194,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" />
       <path d="M12 9.5v4" />
       <path d="M12 17h.01" />
+    </>
+  ),
+  target: (
+    <>
+      <circle cx="12" cy="12" r="7" />
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+      <circle cx="12" cy="12" r="1.5" />
     </>
   ),
 }

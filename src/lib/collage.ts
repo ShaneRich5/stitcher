@@ -24,6 +24,8 @@ export type CollageDoc = {
   overlay: string
   /** 0–1: how strongly the overlay color covers the backgrounds, so the subjects stand out. */
   dim: number
+  /** 0–1: how far each subject pushes in ahead of its background, a two-plane parallax. 0 is off. */
+  parallax: number
   format: VideoExportFormat
 }
 
@@ -31,6 +33,16 @@ export const COLLAGE_FPS = 30
 
 /** Subjects settle into place from this far below (a fraction of the frame height) as they fade in. */
 const RISE = 0.025
+/**
+ * How much a photo's background and its subject grow over their move at full parallax. The
+ * subject grows more, as if nearer the camera. The background still holds the subject (nothing
+ * fills the gap), so the moves stay small, and both zoom around the subject's center, so the
+ * cutout grows over its own ghost instead of sliding off it.
+ */
+const PARALLAX_BACKGROUND_ZOOM = 0.04
+const PARALLAX_SUBJECT_ZOOM = 0.12
+/** Cutouts are read at most this size on their long edge to find the subject's center. */
+const ANCHOR_SAMPLE = 128
 
 export function createCollageDoc(): CollageDoc {
   return {
@@ -43,6 +55,7 @@ export function createCollageDoc(): CollageDoc {
     holdEndMs: 1500,
     overlay: '#000000',
     dim: 0.25,
+    parallax: 0.5,
     format: 'mp4',
   }
 }
@@ -94,12 +107,71 @@ function easeOut(p: number): number {
   return 1 - (1 - p) ** 3
 }
 
+function easeInOut(p: number): number {
+  return 0.5 - Math.cos(Math.PI * p) / 2
+}
+
+type Box = { x: number; y: number; width: number; height: number }
+
 /** The photo covers the frame, centered. Its cutout uses the same box, so the subject stays put. */
-function coverBox(item: CollageItem, width: number, height: number) {
+function coverBox(item: CollageItem, width: number, height: number): Box {
   const w = Math.max(1, item.naturalWidth)
   const h = Math.max(1, item.naturalHeight)
   const scale = Math.max(width / w, height / h)
   return { x: (width - w * scale) / 2, y: (height - h * scale) / 2, width: w * scale, height: h * scale }
+}
+
+/** `box` scaled by `zoom` around the point (ax, ay). */
+function zoomBox(box: Box, zoom: number, ax: number, ay: number): Box {
+  return {
+    x: ax + (box.x - ax) * zoom,
+    y: ay + (box.y - ay) * zoom,
+    width: box.width * zoom,
+    height: box.height * zoom,
+  }
+}
+
+const anchors = new Map<string, { x: number; y: number }>()
+
+/** The center of a cutout's opaque pixels, as fractions of its size. Read once per cutout. */
+function subjectAnchor(cutoutId: string, cutout: HTMLImageElement): { x: number; y: number } {
+  const hit = anchors.get(cutoutId)
+  if (hit) return hit
+  const scale = Math.min(1, ANCHOR_SAMPLE / Math.max(1, cutout.naturalWidth, cutout.naturalHeight))
+  const w = Math.max(1, Math.round(cutout.naturalWidth * scale))
+  const h = Math.max(1, Math.round(cutout.naturalHeight * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  let anchor = { x: 0.5, y: 0.5 }
+  if (ctx) {
+    ctx.drawImage(cutout, 0, 0, w, h)
+    const { data } = ctx.getImageData(0, 0, w, h)
+    let sum = 0
+    let sx = 0
+    let sy = 0
+    for (let i = 0; i < w * h; i++) {
+      const a = data[i * 4 + 3]!
+      sum += a
+      sx += a * (i % w)
+      sy += a * Math.floor(i / w)
+    }
+    if (sum > 0) anchor = { x: (sx / sum + 0.5) / w, y: (sy / sum + 0.5) / h }
+  }
+  anchors.set(cutoutId, anchor)
+  return anchor
+}
+
+/**
+ * How far item `index`'s parallax move has come, 0–1. It runs from its subject appearing until
+ * the next photo's background has covered its own (the end of the video for the last one), and
+ * holds after that.
+ */
+function parallaxProgress(doc: CollageDoc, index: number, timeMs: number): number {
+  const start = itemStartMs(doc, index)
+  const end = index < doc.items.length - 1 ? itemSettledMs(doc, index + 1) : collageDurationMs(doc)
+  return easeInOut(progress(timeMs - start, end - start))
 }
 
 /**
@@ -108,6 +180,24 @@ function coverBox(item: CollageItem, width: number, height: number) {
  */
 export function drawCollageFrame(ctx: CanvasRenderingContext2D, doc: CollageDoc, timeMs: number): void {
   const { width, height, items } = doc
+  const cutoutOf = (item: CollageItem) => (item.cutoutId ? getImage(item.cutoutId)?.image : undefined)
+
+  /** Where item `i`'s photo and subject are drawn now, each zoomed around the subject's center. */
+  const placement = (i: number) => {
+    const item = items[i]!
+    const box = coverBox(item, width, height)
+    if (doc.parallax <= 0) return { background: box, subject: box }
+    const cutout = cutoutOf(item)
+    const anchor = cutout && item.cutoutId ? subjectAnchor(item.cutoutId, cutout) : { x: 0.5, y: 0.5 }
+    const ax = box.x + anchor.x * box.width
+    const ay = box.y + anchor.y * box.height
+    const move = doc.parallax * parallaxProgress(doc, i, timeMs)
+    return {
+      background: zoomBox(box, 1 + PARALLAX_BACKGROUND_ZOOM * move, ax, ay),
+      subject: zoomBox(box, 1 + PARALLAX_SUBJECT_ZOOM * move, ax, ay),
+    }
+  }
+
   ctx.save()
   ctx.imageSmoothingQuality = 'high'
   ctx.globalAlpha = 1
@@ -130,7 +220,7 @@ export function drawCollageFrame(ctx: CanvasRenderingContext2D, doc: CollageDoc,
     const item = items[i]!
     const photo = getImage(item.imageId)?.image
     if (!photo) continue
-    const box = coverBox(item, width, height)
+    const box = placement(i).background
     ctx.globalAlpha = alpha
     ctx.drawImage(photo, box.x, box.y, box.width, box.height)
   }
@@ -144,10 +234,9 @@ export function drawCollageFrame(ctx: CanvasRenderingContext2D, doc: CollageDoc,
   for (let i = 0; i < items.length; i++) {
     const p = progress(timeMs - itemStartMs(doc, i), doc.fadeMs)
     if (p <= 0) break
-    const item = items[i]!
-    const cutout = item.cutoutId ? getImage(item.cutoutId)?.image : undefined
+    const cutout = cutoutOf(items[i]!)
     if (!cutout) continue
-    const box = coverBox(item, width, height)
+    const box = placement(i).subject
     ctx.globalAlpha = p
     ctx.drawImage(cutout, box.x, box.y + (1 - easeOut(p)) * height * RISE, box.width, box.height)
   }

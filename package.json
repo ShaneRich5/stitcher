@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",
+    "@mediapipe/tasks-vision": "^1.1.0",
     "@tanstack/react-router": "^1.170.32",
     "gifenc": "^1.0.3",
     "jszip": "^3.10.1",

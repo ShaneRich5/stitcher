@@ -126,6 +126,21 @@ export function CollageControls({ doc, section = 'bar', onPatch, onAddFiles }: P
     </>
   )
 
+  const motionField = (
+    <label className="range-field" title="Each subject pushes in ahead of its background, for a sense of depth">
+      <span>Parallax</span>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.05}
+        value={doc.parallax}
+        onChange={(e) => onPatch({ parallax: Number(e.target.value) })}
+      />
+      <output>{doc.parallax > 0 ? `${Math.round(doc.parallax * 100)}%` : 'Off'}</output>
+    </label>
+  )
+
   const overlayFields = (
     <>
       <div className="swatches">
@@ -188,6 +203,10 @@ export function CollageControls({ doc, section = 'bar', onPatch, onAddFiles }: P
       <div className="carousel-controls is-stacked">
         <div className="control-fields">{timingFields}</div>
         <div className="control-fields">
+          <span className="control-label">Motion</span>
+          {motionField}
+        </div>
+        <div className="control-fields">
           <span className="control-label">Overlay</span>
           {overlayFields}
         </div>
@@ -222,6 +241,11 @@ export function CollageControls({ doc, section = 'bar', onPatch, onAddFiles }: P
             <fieldset className="popover-section">
               <legend>Timing</legend>
               {timingFields}
+            </fieldset>
+
+            <fieldset className="popover-section">
+              <legend>Motion</legend>
+              {motionField}
             </fieldset>
 
             <fieldset className="popover-section">

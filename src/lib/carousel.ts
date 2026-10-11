@@ -144,6 +144,55 @@ export function cropLayerImage(layer: Layer, img: LoadedImage, crop: Box): Layer
   }
 }
 
+/** A point in a layer's image pixels, in world pixels: scaled into its box, mirrored and turned. */
+export function imageToWorld(layer: Layer, px: number, py: number): { x: number; y: number } {
+  const { w, h } = naturalSize(layer)
+  const dx = (px / w - 0.5) * layer.width * (layer.flipX ? -1 : 1)
+  const dy = (py / h - 0.5) * layer.height
+  const t = (layer.rotation * Math.PI) / 180
+  const { cx, cy } = center(layer)
+  return { x: cx + dx * Math.cos(t) - dy * Math.sin(t), y: cy + dx * Math.sin(t) + dy * Math.cos(t) }
+}
+
+/** A world point in a layer's image pixels, or null when it falls outside the image. */
+export function worldToImage(layer: Layer, wx: number, wy: number): { x: number; y: number } | null {
+  const { w, h } = naturalSize(layer)
+  const t = (layer.rotation * Math.PI) / 180
+  const { cx, cy } = center(layer)
+  const rx = wx - cx
+  const ry = wy - cy
+  const dx = (rx * Math.cos(t) + ry * Math.sin(t)) * (layer.flipX ? -1 : 1)
+  const dy = -rx * Math.sin(t) + ry * Math.cos(t)
+  const u = dx / Math.max(1e-6, layer.width) + 0.5
+  const v = dy / Math.max(1e-6, layer.height) + 0.5
+  if (u < 0 || u > 1 || v < 0 || v > 1) return null
+  return { x: u * w, y: v * h }
+}
+
+/** The world-space bounding box of a box in a layer's image pixels. */
+export function imageBoxToWorld(layer: Layer, box: Box): Box {
+  const corners = [
+    imageToWorld(layer, box.x, box.y),
+    imageToWorld(layer, box.x + box.width, box.y),
+    imageToWorld(layer, box.x, box.y + box.height),
+    imageToWorld(layer, box.x + box.width, box.y + box.height),
+  ]
+  const xs = corners.map((p) => p.x)
+  const ys = corners.map((p) => p.y)
+  const x = Math.min(...xs)
+  const y = Math.min(...ys)
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
+}
+
+/** The world-space bounding box of a layer's (rotated) box. */
+export function layerBounds(layer: Layer): Box {
+  const t = (layer.rotation * Math.PI) / 180
+  const width = Math.abs(layer.width * Math.cos(t)) + Math.abs(layer.height * Math.sin(t))
+  const height = Math.abs(layer.width * Math.sin(t)) + Math.abs(layer.height * Math.cos(t))
+  const { cx, cy } = center(layer)
+  return { x: cx - width / 2, y: cy - height / 2, width, height }
+}
+
 /** Put `layer` directly above the layer with id `belowId` (or on top if that's gone). */
 export function insertLayerAbove(doc: CarouselDoc, belowId: string, layer: Layer): CarouselDoc {
   const i = doc.layers.findIndex((l) => l.id === belowId)
@@ -176,13 +225,10 @@ export function isLowRes(layer: Layer): boolean {
 
 /** Indexes of the slides a layer's (rotated) box overlaps. */
 export function layerSlides(doc: CarouselDoc, layer: Layer): number[] {
-  const t = (layer.rotation * Math.PI) / 180
-  const halfW = (Math.abs(layer.width * Math.cos(t)) + Math.abs(layer.height * Math.sin(t))) / 2
-  const halfH = (Math.abs(layer.width * Math.sin(t)) + Math.abs(layer.height * Math.cos(t))) / 2
-  const { cx, cy } = center(layer)
-  if (cy + halfH <= 0 || cy - halfH >= doc.slideH) return []
-  const first = Math.max(0, Math.floor((cx - halfW) / doc.slideW))
-  const last = Math.min(doc.count - 1, Math.ceil((cx + halfW) / doc.slideW) - 1)
+  const b = layerBounds(layer)
+  if (b.y + b.height <= 0 || b.y >= doc.slideH) return []
+  const first = Math.max(0, Math.floor(b.x / doc.slideW))
+  const last = Math.min(doc.count - 1, Math.ceil((b.x + b.width) / doc.slideW) - 1)
   return Array.from({ length: Math.max(0, last - first + 1) }, (_, k) => first + k)
 }
 
