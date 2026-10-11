@@ -25,3 +25,6 @@ dist-ssr
 
 # TanStack Router cache
 .tanstack
+
+# Claude Code agent worktrees
+.claude/worktrees/

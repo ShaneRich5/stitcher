@@ -21,7 +21,15 @@ Everything runs on your device. There's no account, no upload, no watermark and 
   photo is spread evenly across every slide. Changing either afterwards re-fits it.
 - **Add images**: drop, paste or pick several. Each lands on its own slide and can be moved anywhere.
 - Per-image toolbar: Fill / Fit / Free, zoom, rotate (slider or 90 degrees), flip, aspect lock,
-  layer order, replace, delete. Drag, resize and rotate on the canvas; arrow keys nudge.
+  layer order, duplicate (Ctrl/Cmd+D), replace, delete. Drag, resize and rotate on the canvas;
+  arrow keys nudge.
+- **Cut out** a photo's subject on your device: remove the background, cut it out to a new layer
+  over the untouched photo, or **Portrait** to blur the photo behind a sharp subject. Cutouts are
+  trimmed to the subject without moving it.
+- **Effects** per image: an outline and a drop shadow that follow a cutout's edge (the sticker
+  look), and blur.
+- A **low resolution** warning in the toolbar and on the affected slides when a photo is stretched
+  more than 1.5× and would export soft.
 - **Snapping** to slide edges, centers and grid-cut lines.
 - **Background** swatches or a custom color, or transparent.
 - **Grid cut**: slice each slide into up to 4 x 4 cells (for profile-grid posts).

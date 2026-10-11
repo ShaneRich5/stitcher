@@ -1,14 +1,14 @@
-import { getImage } from './image-registry'
+import { drawLayerContent } from './layer-effects'
 import type { CarouselDoc, Layer } from '../types'
 
-export function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
-  const image = getImage(layer.imageId)?.image
-  if (!image) return
+/** `pxPerWorld` is canvas pixels per world pixel, which effects like shadows need. */
+export function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer, pxPerWorld = 1) {
   ctx.save()
   ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2)
   if (layer.rotation) ctx.rotate((layer.rotation * Math.PI) / 180)
   if (layer.flipX) ctx.scale(-1, 1)
-  ctx.drawImage(image, -layer.width / 2, -layer.height / 2, layer.width, layer.height)
+  ctx.translate(-layer.width / 2, -layer.height / 2)
+  drawLayerContent(ctx, layer, pxPerWorld)
   ctx.restore()
 }
 
@@ -37,6 +37,6 @@ export function renderSlide(
   ctx.imageSmoothingQuality = 'high'
   ctx.scale(canvas.width / doc.slideW, canvas.height / doc.slideH)
   ctx.translate(-index * doc.slideW, 0)
-  for (const layer of doc.layers) drawLayer(ctx, layer)
+  for (const layer of doc.layers) drawLayer(ctx, layer, canvas.width / doc.slideW)
   return canvas
 }

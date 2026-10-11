@@ -27,6 +27,9 @@ export type IconName =
   | 'copy'
   | 'cutout'
   | 'layers'
+  | 'sparkle'
+  | 'alert'
+  | 'aperture'
 
 const PATHS: Record<IconName, ReactNode> = {
   undo: (
@@ -166,6 +169,30 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="m12 3 9 5-9 5-9-5 9-5Z" />
       <path d="m3 12.5 9 5 9-5" />
       <path d="m3 17 9 5 9-5" />
+    </>
+  ),
+  sparkle: (
+    <>
+      <path d="M12 3c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7Z" />
+      <path d="M19 15.5c.2 1.6.9 2.3 2.5 2.5-1.6.2-2.3.9-2.5 2.5-.2-1.6-.9-2.3-2.5-2.5 1.6-.2 2.3-.9 2.5-2.5Z" />
+    </>
+  ),
+  aperture: (
+    <>
+      <circle cx="12" cy="12" r="9.5" />
+      <path d="m14.2 8.2 5.2 9" />
+      <path d="M10 8.2h10.4" />
+      <path d="m7.8 12 5.2-9" />
+      <path d="M9.8 15.8 4.6 6.8" />
+      <path d="M14 15.8H3.6" />
+      <path d="m16.2 12-5.2 9" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9.5v4" />
+      <path d="M12 17h.01" />
     </>
   ),
 }

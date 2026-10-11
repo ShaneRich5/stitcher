@@ -428,6 +428,101 @@ select:focus-visible {
   display: none;
 }
 
+/* The toolbar's popovers open above the whole toolbar, in its dark style. */
+.tool-popover {
+  position: static;
+}
+
+.tool-popover[open] > summary.tool-btn {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.tool-popover > .popover-panel {
+  top: auto;
+  bottom: calc(100% + 8px);
+  background: var(--dock);
+  color: #f3f0ea;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.tool-menu {
+  width: min(290px, 90vw);
+  gap: 2px;
+  padding: 6px;
+}
+
+.tool-menu-item {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.tool-menu .tool-menu-item {
+  width: 100%;
+  padding: 9px 10px;
+}
+
+.tool-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-menu-text small {
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+.effects-panel {
+  width: min(300px, 90vw);
+}
+
+.effects-panel .range-field input[type='range'],
+.effects-fields .range-field input[type='range'] {
+  flex: 1;
+  width: auto;
+}
+
+.effects-panel .range-field > span:first-child,
+.effects-fields .range-field > span:first-child {
+  min-width: 62px;
+}
+
+.effect-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.range-field.color-field input[type='color'] {
+  flex: none;
+  width: 44px;
+  height: 26px;
+  padding: 0 2px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.low-res-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #fbbf24;
+}
+
+.low-res-note small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.image-controls.is-sheet .low-res-note {
+  align-items: flex-start;
+}
+
 .slide-strip {
   padding: 10px 20px 12px;
   border-top: 1px solid var(--border);
@@ -478,12 +573,27 @@ select:focus-visible {
 }
 
 .slide-thumb-frame {
+  position: relative;
   display: block;
   height: 64px;
   overflow: hidden;
   border-radius: 4px;
   border: 1px solid var(--border);
   background-color: #fff;
+}
+
+.slide-thumb-warn {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #1d1b18;
 }
 
 .slide-thumb-frame img {
@@ -543,6 +653,10 @@ select:focus-visible {
 }
 
 .dock {
+  /* Shrinks, scrolling its body, rather than push the page past the screen. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: var(--dock);
   color: #f3f0ea;
   padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
@@ -579,6 +693,7 @@ select:focus-visible {
 }
 
 .dock-body {
+  min-height: 0;
   max-height: 38svh;
   overflow-y: auto;
 }

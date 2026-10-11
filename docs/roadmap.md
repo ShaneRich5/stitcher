@@ -41,7 +41,7 @@ below link to their issue once one exists.
 | Background color / gradient | ✅ (gradients are Premium) | Solid color or transparent; no gradients |
 | Collage grid templates | ✅ (mostly Premium) | ❌ |
 | Borders, spacing, corner radius | ✅ | ❌ |
-| Filters / adjustments | ✅ | ❌ |
+| Filters / adjustments | ✅ | Blur only |
 | Video in carousel | ✅ (Premium) | ❌ (GIF tool only) |
 | Swipe preview | ✅ | ✅ |
 | Share to social | ✅ | Share sheet on phones (Save to Photos); ZIP download on desktop |
@@ -102,7 +102,8 @@ Open:
    shadow. Needs a `type` discriminator on `Layer`.
 3. ~~**Rotation and flip**~~: done, including export.
 4. **Crop / mask**: double-click an image to pan and zoom it inside its own bounds (SCRL "frames").
-5. **Better layer panel**: thumbnails, drag-and-drop reorder, duplicate, hide and lock.
+5. **Better layer panel**: thumbnails, drag-and-drop reorder, hide and lock. Duplicate is done
+   ([#17](https://github.com/ShaneRich5/stitcher/issues/17)).
 6. **Slide management**: up to 20 slides and add/remove from the slide strip are done. Still to
    do: insert a slide between two others, and duplicate a slide.
 7. **Faster input**: drag and drop and clipboard paste are done. Still to do:
@@ -114,17 +115,20 @@ Open:
 9. **More presets**: 9:16 (TikTok photo mode, Stories) is done. Add Pinterest 2:3 and X/YouTube
    16:9 ([#7](https://github.com/ShaneRich5/stitcher/issues/7)). LinkedIn carousels are PDF
    documents, so they need a PDF export rather than a preset.
-10. **Export options**: JPEG export and the Web Share API on phones are done. Add a JPEG quality
-    slider ([#6](https://github.com/ShaneRich5/stitcher/issues/6)).
+10. **Export options**: JPEG export, the Web Share API on phones, and a warning when a stretched
+    photo would export soft ([#18](https://github.com/ShaneRich5/stitcher/issues/18)) are done. Add a
+    JPEG quality slider ([#6](https://github.com/ShaneRich5/stitcher/issues/6)).
 
 ## Phase 2: collage and style
 
 - Grid/collage **layouts** as tiles with image slots (2-up, 3-up, mosaic), with adjustable
   **spacing, border and corner radius**.
 - **Stickers and shapes**: emoji, basic shapes, lines and arrows, plus uploaded PNG stickers.
-- **Filters and adjustments** per image: brightness, contrast, saturation and warmth (Konva
-  filters, applied again at export).
-- **Drop shadows** and outlines on images and text.
+- **Filters and adjustments** per image: blur is done, and Portrait uses it
+  ([#21](https://github.com/ShaneRich5/stitcher/issues/21)). Still to do: brightness, contrast,
+  saturation and warmth, drawn through `drawLayerContent` like the blur so the export matches.
+- **Drop shadows** and outlines: done for images
+  ([#16](https://github.com/ShaneRich5/stitcher/issues/16)); text still to do.
 - **Templates**: a small built-in set stored as JSON, free and remixable. Keep them varied to avoid
   SCRL's "every post looks the same" problem.
 

@@ -113,6 +113,79 @@ export function makeLayer(
   return resetToFit(doc, draft, fit)
 }
 
+/**
+ * Swap a layer to an image cut from its own (`crop`, in the old image's pixels) without moving
+ * anything on screen: the box shrinks to the crop and shifts by its offset, mirrored and turned
+ * the way the layer is. Fill and fit layers become free, since their 100% size would otherwise
+ * be recomputed from the smaller image.
+ */
+export function cropLayerImage(layer: Layer, img: LoadedImage, crop: Box): Layer {
+  const { w, h } = naturalSize(layer)
+  const sx = layer.width / w
+  const sy = layer.height / h
+  const width = crop.width * sx
+  const height = crop.height * sy
+  // The crop's center relative to the image's, in the layer's unrotated box.
+  const dx = (crop.x + crop.width / 2 - w / 2) * sx * (layer.flipX ? -1 : 1)
+  const dy = (crop.y + crop.height / 2 - h / 2) * sy
+  const t = (layer.rotation * Math.PI) / 180
+  const { cx, cy } = center(layer)
+  return {
+    ...layer,
+    name: img.name,
+    imageId: img.id,
+    naturalWidth: img.naturalWidth,
+    naturalHeight: img.naturalHeight,
+    fit: 'free',
+    width,
+    height,
+    x: cx + dx * Math.cos(t) - dy * Math.sin(t) - width / 2,
+    y: cy + dx * Math.sin(t) + dy * Math.cos(t) - height / 2,
+  }
+}
+
+/** Put `layer` directly above the layer with id `belowId` (or on top if that's gone). */
+export function insertLayerAbove(doc: CarouselDoc, belowId: string, layer: Layer): CarouselDoc {
+  const i = doc.layers.findIndex((l) => l.id === belowId)
+  const layers = [...doc.layers]
+  layers.splice(i < 0 ? layers.length : i + 1, 0, layer)
+  return { ...doc, layers }
+}
+
+/** A copy of a layer, with id `copyId`, placed directly above it. */
+export function duplicateLayer(doc: CarouselDoc, id: string, copyId: string): CarouselDoc {
+  const layer = doc.layers.find((l) => l.id === id)
+  return layer ? insertLayerAbove(doc, id, { ...layer, id: copyId }) : doc
+}
+
+/**
+ * How far a layer stretches its image. Slides export at one world pixel per pixel, so above 1
+ * the export invents pixels and looks soft.
+ */
+export function layerUpscale(layer: Layer): number {
+  const { w, h } = naturalSize(layer)
+  return Math.max(layer.width / w, layer.height / h)
+}
+
+export const LOW_RES_UPSCALE = 1.5
+
+/** Upscaled enough to look soft. A blurred layer is soft on purpose, so it never counts. */
+export function isLowRes(layer: Layer): boolean {
+  return !layer.blur && layerUpscale(layer) > LOW_RES_UPSCALE
+}
+
+/** Indexes of the slides a layer's (rotated) box overlaps. */
+export function layerSlides(doc: CarouselDoc, layer: Layer): number[] {
+  const t = (layer.rotation * Math.PI) / 180
+  const halfW = (Math.abs(layer.width * Math.cos(t)) + Math.abs(layer.height * Math.sin(t))) / 2
+  const halfH = (Math.abs(layer.width * Math.sin(t)) + Math.abs(layer.height * Math.cos(t))) / 2
+  const { cx, cy } = center(layer)
+  if (cy + halfH <= 0 || cy - halfH >= doc.slideH) return []
+  const first = Math.max(0, Math.floor((cx - halfW) / doc.slideW))
+  const last = Math.min(doc.count - 1, Math.ceil((cx + halfW) / doc.slideW) - 1)
+  return Array.from({ length: Math.max(0, last - first + 1) }, (_, k) => first + k)
+}
+
 /** Swap a layer's image, keeping its center and zoom. */
 export function replaceLayerImage(doc: CarouselDoc, layer: Layer, img: LoadedImage): Layer {
   const zoom = layerZoom(doc, layer)
@@ -130,6 +203,22 @@ export function replaceLayerImage(doc: CarouselDoc, layer: Layer, img: LoadedIma
   return { ...next, width, height, x: cx - width / 2, y: cy - height / 2 }
 }
 
+/** Outline, shadow and blur are world pixels, so they follow the slides when the format changes. */
+function scaleEffects(l: Layer, s: number): Layer {
+  if (!l.outline && !l.shadow && !l.blur) return l
+  return {
+    ...l,
+    outline: l.outline && { ...l.outline, width: l.outline.width * s },
+    shadow: l.shadow && {
+      ...l.shadow,
+      blur: l.shadow.blur * s,
+      offsetX: l.shadow.offsetX * s,
+      offsetY: l.shadow.offsetY * s,
+    },
+    blur: l.blur && l.blur * s,
+  }
+}
+
 /**
  * Carry layers from `prev` into `next` after the slide count or size changes. Fill/fit layers
  * keep their zoom and offset relative to the row; free layers scale with the slide size, and
@@ -141,7 +230,8 @@ export function relayout(prev: CarouselDoc, next: CarouselDoc): CarouselDoc {
   const sizeChanged = sx !== 1 || sy !== 1
   const width = totalWidth(next)
 
-  const layers = next.layers.flatMap((l) => {
+  const layers = next.layers.flatMap((layer) => {
+    const l = sizeChanged ? scaleEffects(layer, Math.min(sx, sy)) : layer
     if (l.fit !== 'free') {
       const oldBase = baseBox(prev, l)
       const newBase = baseBox(next, l)

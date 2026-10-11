@@ -37,6 +37,7 @@ src/
     snap-guides.ts            Snap targets and snapBox()
     render-slide.ts           Canvas render of one slide from source pixels
     remove-background.ts      Subject cutouts with RMBG-1.4 via Transformers.js, loaded on first use
+    layer-effects.ts          Outline, shadow and blur, drawn the same on the stage and in export
     export-carousel.ts        Slide/grid files, ZIP, Web Share
     use-editor-history.ts     Immutable undo/redo with coalescing
     use-slide-thumbnails.ts   Debounced thumbnails
@@ -52,7 +53,8 @@ thumbnail strip, and a phone `.dock` with tabs. The styles live in `editor.css`.
 ```ts
 CarouselDoc { slideW, slideH, count, gridCols, gridRows, background: string | null, layers }
 Layer { id, name, imageId, naturalWidth, naturalHeight,
-        x, y, width, height, rotation, flipX, fit, lockAspect }
+        x, y, width, height, rotation, flipX, fit, lockAspect,
+        outline?, shadow?, blur? }
 
 GifDoc { frames, delayMs, holdLastMs, maxSize, background, reverse, loopOnce, format }
 GifFrame { id, name, imageId, naturalWidth, naturalHeight, holdMs? }
@@ -95,12 +97,32 @@ CollageItem { id, name, imageId, naturalWidth, naturalHeight, cutoutId: string |
   holds more than one frame in memory.
 - The collage isn't autosaved yet; like the GIF tool, its photos live in component state.
 
+## Effects
+
+A layer can carry an `outline`, a `shadow` and a `blur`, all optional (so older autosaves still
+load) and all in world pixels, so they look the same at any zoom and scale with the format.
+`drawLayerContent` in `layer-effects.ts` draws a layer into its own box, with the outline under the
+image and the shadow falling from the outline when there is one. `renderSlide` calls it for the
+thumbnails, the swipe preview and the export, and the stage calls it from each image node's
+`sceneFunc` (hit testing stays the image's box), so all of them match.
+
+- **Outline**: neither Konva nor the canvas can stroke an image's transparent edge, so the outline
+  is a distance field around the opaque pixels, thresholded at the width. The field doesn't depend
+  on the width or color, so it's cached per image and size and those sliders stay quick.
+- **Blur** is a three-pass box blur (close to a Gaussian) in JS, on a copy small enough that the
+  radius there is a few pixels, with edges clamped so a photo's border doesn't fade. It doesn't use
+  canvas `filter`, which older Safari lacks, so every browser gets the same pixels.
+- **Shadow** uses the canvas's own shadow, which ignores the transform, so `pxPerWorld` converts
+  its sizes. The stage's faded copy outside the slides skips it, or it would darken twice.
+
 ## Stage and export
 
 - The Konva stage draws each layer twice: a faded, interactive copy (the Transformer target)
   and a full-opacity copy clipped to the slides.
 - Export does not read the stage. `renderSlide` redraws each slide from the source image
-  pixels, so output is full resolution regardless of the on-screen zoom. Grid cutting crops
+  pixels, so output is full resolution regardless of the on-screen zoom. Slides export at one
+  world pixel per pixel, so a layer stretched more than 1.5× past its image (`layerUpscale`) gets a
+  low-resolution note in the toolbar and on the slides it covers. It's derived, never stored. Grid cutting crops
   that canvas. Files go into one ZIP (or a single file), or to the share sheet on phones.
 - Animation export pairs each frame with its hold in `playbackSteps` (`encode-gif.ts`) *before*
   reversing, so a hold travels with its own frame, and adds `holdLastMs` to whichever step ends up
@@ -109,8 +131,16 @@ CollageItem { id, name, imageId, naturalWidth, naturalHeight, cutoutId: string |
 
 ## Background removal
 
-"Remove background" in the image toolbar swaps the selected layer's photo for a cutout of its
-subject, as one undo step. `remove-background.ts` runs BRIA's RMBG-1.4 through Transformers.js:
+"Cut out" in the image toolbar has three actions, each one undo step: **Remove background** swaps
+the selected photo for a cutout of its subject, **Cut out to new layer** keeps the photo and puts
+the cutout exactly on top, and **Portrait** does the same and blurs the photo underneath.
+
+The carousel trims each cutout to its subject (`trim`), so the selection box, snapping and Free
+placement use the subject's edges. `cropLayerImage` then shrinks the layer's box to the crop and
+shifts it by the crop's offset, turned and mirrored like the layer, so nothing moves on screen.
+Fill and fit layers become free, since their 100% size would otherwise be recomputed from the
+smaller image. The collage doesn't trim: it draws each cutout over its own photo.
+`remove-background.ts` runs BRIA's RMBG-1.4 through Transformers.js:
 
 - Nothing loads until the first use. Then the Transformers.js chunk is imported, the model comes
   from the Hugging Face Hub and the ONNX Runtime wasm from jsDelivr. The browser caches both, so
@@ -119,7 +149,7 @@ subject, as one undo step. `remove-background.ts` runs BRIA's RMBG-1.4 through T
   8-bit model on the CPU (44 MB). The CPU path is single-threaded, because GitHub Pages can't send
   the cross-origin isolation headers that threads need.
 - The mask is computed on a copy scaled to 1024 px, then stretched over the original pixels, so the
-  cutout is a full-resolution transparent PNG of the same size. It is registered as a new `imageId`,
+  cutout is a full-resolution transparent PNG (of the same size, unless trimmed). It is registered as a new `imageId`,
   which means autosave, the stage and export need nothing special for it.
 - RMBG-1.4 is licensed for **non-commercial use only**. That fits Stitcher being free with no
   paywall; ads or a paid tier would need a licence from BRIA or a different model (`MODEL_ID`).

@@ -1,6 +1,9 @@
 import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'react'
 import {
   createDoc,
+  cropLayerImage,
+  duplicateLayer,
+  insertLayerAbove,
   layerZoom,
   makeLayer,
   moveLayer,
@@ -31,11 +34,13 @@ import { AppNav } from './app-nav'
 import { CarouselControls } from './carousel-controls'
 import { CarouselStage } from './carousel-stage'
 import { Icon } from './icons'
-import { ImageControls } from './image-controls'
+import { ImageControls, type CutoutMode } from './image-controls'
 import { SlideStrip } from './slide-strip'
 import { SwipePreview } from './swipe-preview'
 
 const NUDGE = 4
+/** How much Portrait blurs the photo behind its subject, in world pixels. */
+const PORTRAIT_BLUR = 16
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -152,28 +157,62 @@ export function StitcherEditor() {
     if (img) patchLayer(selected.id, (d, l) => replaceLayerImage(d, l, img))
   }
 
-  /** Swap the selected layer's photo for a cutout of its subject. One undo step restores it. */
-  const removeSelectedBackground = async () => {
+  /**
+   * Cut the selected photo's subject out, trimmed to it and placed exactly over where it was.
+   * `replace` swaps the photo for it; `layer` keeps the photo and adds the subject above it;
+   * `portrait` does the same and blurs the photo. Each is one undo step.
+   */
+  const cutOutSelected = async (mode: CutoutMode) => {
     if (!selected || cutoutStatus) return
     const { id: layerId, imageId, name } = selected
     setCutoutStatus('Removing background…')
     try {
-      const img = await removeBackground(imageId, name, (fraction) =>
-        setCutoutStatus(
-          fraction < 1 ? `Downloading the background remover… ${Math.round(fraction * 100)}%` : 'Removing background…',
-        ),
+      const cutout = await removeBackground(
+        imageId,
+        name,
+        (fraction) =>
+          setCutoutStatus(
+            fraction < 1 ? `Downloading the background remover… ${Math.round(fraction * 100)}%` : 'Removing background…',
+          ),
+        { trim: true },
       )
+      const subjectId = crypto.randomUUID()
+      let placed = false
       patchDoc((d) => {
         // Leave the doc alone if the layer was deleted or its photo replaced in the meantime.
-        if (d.layers.find((l) => l.id === layerId)?.imageId !== imageId) return d
-        return { ...d, layers: d.layers.map((l) => (l.id === layerId ? replaceLayerImage(d, l, img) : l)) }
+        const original = d.layers.find((l) => l.id === layerId)
+        if (original?.imageId !== imageId) return d
+        placed = true
+        const subject = cropLayerImage(original, cutout, cutout.crop)
+        if (mode === 'replace') {
+          return { ...d, layers: d.layers.map((l) => (l.id === layerId ? subject : l)) }
+        }
+        // A new layer starts plain: the photo's effects were meant for the photo.
+        const added = insertLayerAbove(d, layerId, {
+          ...subject,
+          id: subjectId,
+          outline: undefined,
+          shadow: undefined,
+          blur: undefined,
+        })
+        if (mode === 'layer') return added
+        return { ...added, layers: added.layers.map((l) => (l.id === layerId ? { ...l, blur: PORTRAIT_BLUR } : l)) }
       })
+      if (placed && mode !== 'replace') select(subjectId)
     } catch (e) {
       console.error(e)
       say('Could not remove the background')
     } finally {
       setCutoutStatus(null)
     }
+  }
+
+  const duplicateSelected = () => {
+    if (!selected) return
+    const copyId = crypto.randomUUID()
+    const id = selected.id
+    patchDoc((d) => duplicateLayer(d, id, copyId))
+    select(copyId)
   }
 
   const deleteSelected = () => {
@@ -216,6 +255,10 @@ export function StitcherEditor() {
     } else if (mod && key === 'y') {
       e.preventDefault()
       redo()
+    } else if (selected && mod && key === 'd') {
+      // Ctrl/Cmd + D would otherwise bookmark the page.
+      e.preventDefault()
+      duplicateSelected()
     } else if (selected && (e.key === 'Delete' || e.key === 'Backspace')) {
       e.preventDefault()
       deleteSelected()
@@ -287,8 +330,12 @@ export function StitcherEditor() {
       onFlip={() => patchLayer(selected.id, (_, l) => ({ ...l, flipX: !l.flipX }))}
       onToggleLock={() => patchLayer(selected.id, (_, l) => ({ ...l, lockAspect: !l.lockAspect }))}
       onReplace={(f) => void replaceFile(f)}
-      onRemoveBackground={() => void removeSelectedBackground()}
+      onDuplicate={duplicateSelected}
+      onCutout={(mode) => void cutOutSelected(mode)}
       removingBackground={cutoutStatus !== null}
+      onEffects={(patch, coalesce) =>
+        patchLayer(selected.id, (_, l) => ({ ...l, ...patch }), coalesce && `${coalesce}-${selected.id}`)
+      }
       onForward={() => patchDoc((d) => moveLayer(d, selected.id, 1))}
       onBackward={() => patchDoc((d) => moveLayer(d, selected.id, -1))}
       onDelete={deleteSelected}

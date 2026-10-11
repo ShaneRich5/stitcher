@@ -22,7 +22,18 @@ export type Layer = {
   fit: FitMode
   /** When true, resizing keeps the layer's width/height ratio. */
   lockAspect: boolean
+  /** A solid edge around the image's opaque pixels (the sticker look). */
+  outline?: LayerOutline
+  /** A soft shadow that follows the image's transparency, and its outline when there is one. */
+  shadow?: LayerShadow
+  /** Gaussian blur radius in world pixels, e.g. the background of a portrait. */
+  blur?: number
 }
+
+/** Sizes are world pixels, like the layer's box, so they look the same at any zoom and in export. */
+export type LayerOutline = { color: string; width: number }
+
+export type LayerShadow = { color: string; blur: number; offsetX: number; offsetY: number; opacity: number }
 
 /** One still in the GIF tool's sequence. Like `Layer`, it holds plain data only. */
 export type GifFrame = {

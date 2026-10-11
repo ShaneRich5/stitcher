@@ -1,4 +1,4 @@
-import { MAX_SLIDES } from '../lib/carousel'
+import { isLowRes, layerSlides, layerUpscale, MAX_SLIDES } from '../lib/carousel'
 import type { CarouselDoc } from '../types'
 import { Icon } from './icons'
 
@@ -11,9 +11,20 @@ type Props = {
   onRemove: (index: number) => void
 }
 
+/** Per slide, a note naming each upscaled layer that shows on it, or null. */
+function lowResNotes(doc: CarouselDoc): (string | null)[] {
+  const notes: string[][] = Array.from({ length: doc.count }, () => [])
+  for (const layer of doc.layers) {
+    if (!isLowRes(layer)) continue
+    for (const i of layerSlides(doc, layer)) notes[i]!.push(`${layer.name} (${layerUpscale(layer).toFixed(1)}×)`)
+  }
+  return notes.map((n) => (n.length ? `Low resolution: ${n.join(', ')} will look soft here` : null))
+}
+
 /** The slides exactly as they'll be posted, in order. */
 export function SlideStrip({ doc, thumbs, activeSlide, onSelect, onAdd, onRemove }: Props) {
   const pad = Math.max(2, String(doc.count).length)
+  const lowRes = lowResNotes(doc)
 
   return (
     <nav className="slide-strip" aria-label="Slides">
@@ -27,7 +38,7 @@ export function SlideStrip({ doc, thumbs, activeSlide, onSelect, onAdd, onRemove
             <button
               type="button"
               className="slide-thumb"
-              aria-label={`Slide ${i + 1}`}
+              aria-label={`Slide ${i + 1}${lowRes[i] ? `. ${lowRes[i]}` : ''}`}
               aria-current={i === activeSlide ? 'true' : undefined}
               onClick={() => onSelect(i)}
             >
@@ -36,6 +47,11 @@ export function SlideStrip({ doc, thumbs, activeSlide, onSelect, onAdd, onRemove
                 style={{ aspectRatio: `${doc.slideW} / ${doc.slideH}` }}
               >
                 {thumbs[i] ? <img src={thumbs[i]} alt="" /> : null}
+                {lowRes[i] ? (
+                  <span className="slide-thumb-warn" title={lowRes[i]!}>
+                    <Icon name="alert" size={12} />
+                  </span>
+                ) : null}
               </span>
               <span className="slide-thumb-num">{String(i + 1).padStart(pad, '0')}</span>
             </button>

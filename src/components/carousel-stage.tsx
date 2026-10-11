@@ -14,6 +14,7 @@ import {
 import Konva from 'konva'
 import { normalizeDegrees, slideIndexAt, totalWidth } from '../lib/carousel'
 import { getImage } from '../lib/image-registry'
+import { drawLayerContent } from '../lib/layer-effects'
 import { collectSnapTargets, snapBox, type SnapGuides } from '../lib/snap-guides'
 import type { CarouselDoc, Layer } from '../types'
 
@@ -75,8 +76,13 @@ function syncTwin(stage: Konva.Stage | null, layerId: string, node: Konva.Node) 
   })
 }
 
-/** Konva props for a layer, rotating and flipping around its center. */
-function layerNodeProps(l: Layer) {
+/**
+ * Konva props for a layer, rotating and flipping around its center. It draws through the same
+ * `drawLayerContent` as the export, so outlines, shadows and blur match; hit testing stays the
+ * image's box. The faded copy leaves out the shadow, which would otherwise darken twice under
+ * the full-opacity copy.
+ */
+function layerNodeProps(l: Layer, scale: number, shadow: boolean) {
   return {
     image: getImage(l.imageId)?.image,
     x: l.x + l.width / 2,
@@ -87,6 +93,11 @@ function layerNodeProps(l: Layer) {
     offsetY: l.height / 2,
     rotation: l.rotation,
     scaleX: l.flipX ? -1 : 1,
+    sceneFunc: (context: Konva.Context, shape: Konva.Shape) => {
+      // Mid-transform the node's own size leads the doc's.
+      const live = { ...l, width: shape.width(), height: shape.height() }
+      drawLayerContent(context._context, live, scale * context.getCanvas().getPixelRatio(), { shadow })
+    },
   }
 }
 
@@ -223,7 +234,7 @@ export function CarouselStage({
                   <KonvaImage
                     key={`layer-${layer.id}`}
                     id={`layer-${layer.id}`}
-                    {...layerNodeProps(layer)}
+                    {...layerNodeProps(layer, scale, false)}
                     opacity={OVERFLOW_OPACITY}
                     draggable
                     onMouseEnter={(e) => setCursor(e, 'move')}
@@ -254,7 +265,12 @@ export function CarouselStage({
               {/* Full-opacity copies clipped to the slides: what actually gets exported. */}
               <Group clipFunc={clipSlides} listening={false}>
                 {doc.layers.map((layer) => (
-                  <KonvaImage key={`in-${layer.id}`} id={`in-${layer.id}`} {...layerNodeProps(layer)} listening={false} />
+                  <KonvaImage
+                    key={`in-${layer.id}`}
+                    id={`in-${layer.id}`}
+                    {...layerNodeProps(layer, scale, true)}
+                    listening={false}
+                  />
                 ))}
               </Group>
 
