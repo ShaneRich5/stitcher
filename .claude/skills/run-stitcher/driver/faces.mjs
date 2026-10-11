@@ -1,7 +1,7 @@
 // Carousel: a face on a slide edge is marked, Nudge clears it, and undo brings it back.
 import { photo, run, shot } from './common.mjs'
 
-await run('', async (page) => {
+await run('carousel', async (page) => {
   const note = page.locator('.low-res-note', { hasText: /slide edge/ })
   await page.locator('.empty-state input[type=file]').setInputFiles(await photo('football-match.jpg'))
   await page.locator('.image-controls').waitFor()

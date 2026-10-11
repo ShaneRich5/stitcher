@@ -13,7 +13,9 @@ Everything runs on your device. There's no account, no upload, no watermark and 
 
 ## Tools
 
-### Carousel (`/`)
+The landing page at `/` links to each tool.
+
+### Carousel (`/carousel`)
 
 - One row of equal-size **slides**. Images live in a shared space, so a single photo can span
   several slides.

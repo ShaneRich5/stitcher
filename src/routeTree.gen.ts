@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CarouselRouteImport } from './routes/carousel'
 import { Route as CollageRouteImport } from './routes/collage'
 import { Route as GifRouteImport } from './routes/gif'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CarouselRoute = CarouselRouteImport.update({
+  id: '/carousel',
+  path: '/carousel',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CollageRoute = CollageRouteImport.update({
@@ -31,30 +37,34 @@ const GifRoute = GifRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/carousel': typeof CarouselRoute
   '/collage': typeof CollageRoute
   '/gif': typeof GifRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/carousel': typeof CarouselRoute
   '/collage': typeof CollageRoute
   '/gif': typeof GifRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/carousel': typeof CarouselRoute
   '/collage': typeof CollageRoute
   '/gif': typeof GifRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/collage' | '/gif'
+  fullPaths: '/' | '/carousel' | '/collage' | '/gif'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/collage' | '/gif'
-  id: '__root__' | '/' | '/collage' | '/gif'
+  to: '/' | '/carousel' | '/collage' | '/gif'
+  id: '__root__' | '/' | '/carousel' | '/collage' | '/gif'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CarouselRoute: typeof CarouselRoute
   CollageRoute: typeof CollageRoute
   GifRoute: typeof GifRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/carousel': {
+      id: '/carousel'
+      path: '/carousel'
+      fullPath: '/carousel'
+      preLoaderRoute: typeof CarouselRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/collage': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CarouselRoute: CarouselRoute,
   CollageRoute: CollageRoute,
   GifRoute: GifRoute,
 }

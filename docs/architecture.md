@@ -10,11 +10,13 @@ src/
   main.tsx                    Router bootstrap
   routes/                     File-based routes (TanStack). routeTree.gen.ts is generated.
     __root.tsx                Root route -> RootLayout
-    index.tsx                 /     -> StitcherEditor
+    index.tsx                 /     -> LandingPage
+    carousel.tsx              /carousel -> StitcherEditor
     gif.tsx                   /gif  -> GifMaker
     collage.tsx               /collage -> CollageMaker
   components/
     root-layout.tsx           App shell; each tool renders its own <AppNav> with its actions
+    landing-page.tsx          Landing page: hero, panorama split into slides, links to the tools
     stitcher-editor.tsx       Carousel tool: state, handlers, keyboard, drag/drop, paste, export
     carousel-stage.tsx        Konva stage: slides, layers, snapping, transformer
     carousel-controls.tsx     Whole-carousel controls (slides, format, split, style, export type)

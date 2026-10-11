@@ -2,7 +2,7 @@
 // Remove background. First run downloads SlimSAM (~14 MB) and RMBG (~44 MB) on the CPU path.
 import { footballToWorld, photo, run, shot, worldToPage } from './common.mjs'
 
-await run('', async (page) => {
+await run('carousel', async (page) => {
   /** Screenshot of an area of the photo (in its pixels), clipped to the slides. */
   const crop = async (name, x0, y0, x1, y1) => {
     const a = footballToWorld(x0, y0)
