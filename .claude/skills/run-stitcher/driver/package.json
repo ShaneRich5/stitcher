@@ -1,0 +1,9 @@
+{
+  "name": "stitcher-driver",
+  "private": true,
+  "type": "module",
+  "description": "Headless Chrome scripts that drive the Stitcher app. Copied to a scratch folder and installed there, not in the project.",
+  "dependencies": {
+    "playwright-core": "1.48.2"
+  }
+}
