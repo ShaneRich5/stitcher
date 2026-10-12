@@ -28,6 +28,26 @@ export type Layer = {
   shadow?: LayerShadow
   /** Gaussian blur radius in world pixels, e.g. the background of a portrait. */
   blur?: number
+  /** Color adjustments and a film look. All amounts, not sizes, so they don't scale with the format. */
+  look?: LayerLook
+}
+
+/** The presets in `lib/film-looks`. */
+export type FilmLookId = 'golden' | 'instant' | 'disposable' | 'slide' | 'matte' | 'retro' | 'cinema' | 'mono'
+
+/**
+ * A layer's color: a film preset at `strength` (0 to 1), then the adjustments, each -1 to 1, with
+ * grain and vignette 0 to 1. All at 0 with no preset leaves the photo as it is.
+ */
+export type LayerLook = {
+  film: FilmLookId | null
+  strength: number
+  brightness: number
+  contrast: number
+  saturation: number
+  warmth: number
+  grain: number
+  vignette: number
 }
 
 /** Sizes are world pixels, like the layer's box, so they look the same at any zoom and in export. */

@@ -43,7 +43,8 @@ src/
     choose-subject.ts         Tap to choose the subject: SlimSAM picks which part of RMBG's mask to keep
     detect-faces.ts           Face boxes per image with MediaPipe's BlazeFace, loaded on first use
     face-edges.ts             Faces a slide edge splits, and the Nudge that clears them (DOM-free)
-    layer-effects.ts          Outline, shadow and blur, drawn the same on the stage and in export
+    layer-effects.ts          Outline, shadow, blur and look, drawn the same on the stage and in export
+    film-looks.ts             Film presets and adjustments; gradePixels grades RGBA pixels (DOM-free)
     export-carousel.ts        Slide/grid files, ZIP, Web Share
     use-editor-history.ts     Immutable undo/redo with coalescing
     use-slide-thumbnails.ts   Debounced thumbnails
@@ -60,7 +61,7 @@ thumbnail strip, and a phone `.dock` with tabs. The styles live in `editor.css`.
 CarouselDoc { slideW, slideH, count, gridCols, gridRows, background: string | null, layers }
 Layer { id, name, imageId, naturalWidth, naturalHeight,
         x, y, width, height, rotation, flipX, fit, lockAspect,
-        outline?, shadow?, blur? }
+        outline?, shadow?, blur?, look? }
 
 GifDoc { frames, delayMs, holdLastMs, maxSize, background, reverse, loopOnce, format }
 GifFrame { id, name, imageId, naturalWidth, naturalHeight, holdMs? }
@@ -126,6 +127,17 @@ thumbnails, the swipe preview and the export, and the stage calls it from each i
   canvas `filter`, which older Safari lacks, so every browser gets the same pixels.
 - **Shadow** uses the canvas's own shadow, which ignores the transform, so `pxPerWorld` converts
   its sizes. The stage's faded copy outside the slides skips it, or it would darken twice.
+- **Look** is a film preset (scaled by its strength) plus brightness, contrast, saturation, warmth,
+  grain and vignette, all in one `LayerLook`. `gradePixels` in `film-looks.ts` applies it in one
+  pass: per-channel tone curves (white balance, exposure, contrast, faded blacks) from 256-entry
+  tables, then saturation, a tint for the shadows and another for the highlights, the vignette and
+  the grain. It's graded after the blur, so the grain stays sharp on a portrait's background.
+  The graded copy is as large as it's drawn, in √2 steps so a resize rarely regrades it, and no
+  larger than the photo unless it has grain: grain is 1.5 world pixels, so it looks the same on
+  every slide, and on a stretched photo that needs more pixels than the photo has. The vignette is
+  relative to the photo. Copies are cached under a pixel budget rather than a count, since "Apply
+  to all photos" can give every layer one, and evicted canvases are emptied so Safari frees them.
+  A cutout keeps its photo's look, so the subject matches what's behind it.
 
 ## Stage and export
 

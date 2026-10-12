@@ -237,7 +237,8 @@ export function StitcherEditor() {
       if (mode === 'replace') {
         return { ...d, layers: d.layers.map((l) => (l.id === layerId ? subject : l)) }
       }
-      // A new layer starts plain: the photo's effects were meant for the photo.
+      // A new layer starts plain: the photo's effects were meant for the photo. It keeps the
+      // photo's look, so the subject's color matches what's behind it.
       const added = insertLayerAbove(d, layerId, {
         ...subject,
         id: subjectId,
@@ -507,6 +508,11 @@ export function StitcherEditor() {
       onNudge={nudgeSelected}
       onEffects={(patch, coalesce) =>
         patchLayer(selected.id, (_, l) => ({ ...l, ...patch }), coalesce && `${coalesce}-${selected.id}`)
+      }
+      onLookToAll={
+        doc.layers.length > 1
+          ? () => patchDoc((d) => ({ ...d, layers: d.layers.map((l) => ({ ...l, look: selected.look })) }))
+          : undefined
       }
       onForward={() => patchDoc((d) => moveLayer(d, selected.id, 1))}
       onBackward={() => patchDoc((d) => moveLayer(d, selected.id, -1))}

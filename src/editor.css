@@ -493,6 +493,99 @@ select:focus-visible {
   gap: 8px;
 }
 
+/* The look panel can outgrow a short window, since it opens upward from the toolbar. */
+.look-panel {
+  width: min(320px, 90vw);
+  max-height: min(70svh, 560px);
+  overflow-y: auto;
+  gap: 10px;
+}
+
+/* One row of swatches that scrolls sideways, like a camera app's film picker. */
+.look-swatches {
+  display: flex;
+  gap: 8px;
+  margin: 0 -2px;
+  padding: 2px 2px 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.look-swatch {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: 12px var(--sans);
+  cursor: pointer;
+}
+
+.look-swatch img {
+  display: block;
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.look-swatch.on img {
+  border-color: #fff;
+}
+
+.look-swatch:not(.on) span {
+  opacity: 0.7;
+}
+
+.look-swatch:focus-visible {
+  outline: none;
+}
+
+.look-swatch:focus-visible img {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.look-heading {
+  margin-top: 4px;
+  font: 600 11px var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+}
+
+.look-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.look-btn {
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: 600 12px var(--sans);
+  cursor: pointer;
+}
+
+.look-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.look-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .range-field.color-field input[type='color'] {
   flex: none;
   width: 44px;

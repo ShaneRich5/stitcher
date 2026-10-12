@@ -41,7 +41,8 @@ below link to their issue once one exists.
 | Background color / gradient | ✅ (gradients are Premium) | Solid color or transparent; no gradients |
 | Collage grid templates | ✅ (mostly Premium) | ❌ |
 | Borders, spacing, corner radius | ✅ | ❌ |
-| Filters / adjustments | ✅ | Blur only |
+| Filters / adjustments | ✅ | Blur, brightness, contrast, saturation, warmth |
+| Film looks (grain, vignette, one look for the whole post) | ❌ | ✅ (8 presets) |
 | Video in carousel | ✅ (Premium) | ❌ (GIF tool only) |
 | Swipe preview | ✅ | ✅ |
 | Share to social | ✅ | Share sheet on phones (Save to Photos); ZIP download on desktop |
@@ -124,9 +125,26 @@ Open:
 - Grid/collage **layouts** as tiles with image slots (2-up, 3-up, mosaic), with adjustable
   **spacing, border and corner radius**.
 - **Stickers and shapes**: emoji, basic shapes, lines and arrows, plus uploaded PNG stickers.
-- **Filters and adjustments** per image: blur is done, and Portrait uses it
-  ([#21](https://github.com/ShaneRich5/stitcher/issues/21)). Still to do: brightness, contrast,
-  saturation and warmth, drawn through `drawLayerContent` like the blur so the export matches.
+- ~~**Filters and adjustments** per image~~: done. Blur, which Portrait uses
+  ([#21](https://github.com/ShaneRich5/stitcher/issues/21)), and brightness, contrast, saturation
+  and warmth ([#23](https://github.com/ShaneRich5/stitcher/issues/23)), all drawn through
+  `drawLayerContent` so the export matches.
+- **Film looks**, in the spirit of vintage camera apps like
+  [Dazz Cam](https://apps.apple.com/us/app/dazz-cam-vintage-camera/id1422471180): the looks, not
+  the camera. Dazz works one photo at a time and paywalls many of its looks; here one look can
+  cover the whole carousel, so photos from different phones and days read as one set, and the
+  effects can use the slides themselves. In order:
+  1. ~~Presets built on the adjustments, plus grain and a vignette, with "Apply to all photos"~~:
+     done, with eight looks ([#24](https://github.com/ShaneRich5/stitcher/issues/24)). A few
+     well-tuned looks beat many weak ones, and they get generic names, not camera or film-stock
+     trademarks.
+  2. Light leaks on the seams between slides, the way a leak bleeds across neighbouring frames on
+     a roll, so it carries on as the viewer swipes
+     ([#25](https://github.com/ShaneRich5/stitcher/issues/25)).
+  3. A date stamp from the photo's EXIF date
+     ([#26](https://github.com/ShaneRich5/stitcher/issues/26)).
+  4. The same looks in the collage and GIF tools, with grain that moves from frame to frame
+     ([#27](https://github.com/ShaneRich5/stitcher/issues/27)).
 - **Drop shadows** and outlines: done for images
   ([#16](https://github.com/ShaneRich5/stitcher/issues/16)); text still to do.
 - **Templates**: a small built-in set stored as JSON, free and remixable. Keep them varied to avoid
@@ -190,3 +208,7 @@ is a multi-MB WASM download, so keep the lightweight web build until mobile is p
 
 Accounts, cloud sync, a backend, paywalls or watermarks, and direct posting through platform APIs
 (that would need a server and OAuth).
+
+A live camera that shoots through a film look, as Dazz Cam does: in a browser it would be worse
+than the phone's own camera (lower resolution, no HDR), and Stitcher edits photos people already
+have.

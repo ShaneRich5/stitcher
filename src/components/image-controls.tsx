@@ -1,14 +1,15 @@
 import { useRef } from 'react'
 import { isLowRes, layerUpscale } from '../lib/carousel'
-import { OUTLINE_MAX } from '../lib/layer-effects'
+import { FILM_LOOKS, isNeutralLook, NEUTRAL_LOOK, withFilm } from '../lib/film-looks'
+import { lookSwatch, OUTLINE_MAX } from '../lib/layer-effects'
 import { imageFiles } from '../lib/load-image'
-import type { FitMode, Layer, LayerOutline, LayerShadow } from '../types'
+import type { FilmLookId, FitMode, Layer, LayerLook, LayerOutline, LayerShadow } from '../types'
 import { Icon, type IconName } from './icons'
 
 /** What "Cut out" does with the subject: replace the photo, add it above, or add it over a blur. */
 export type CutoutMode = 'replace' | 'layer' | 'portrait'
 
-export type EffectsPatch = Partial<Pick<Layer, 'outline' | 'shadow' | 'blur'>>
+export type EffectsPatch = Partial<Pick<Layer, 'outline' | 'shadow' | 'blur' | 'look'>>
 
 type Props = {
   layer: Layer
@@ -34,6 +35,8 @@ type Props = {
   onNudge: () => void
   /** `coalesce` names a slider or picker, so dragging it is one undo step. */
   onEffects: (patch: EffectsPatch, coalesce?: string) => void
+  /** Give every photo this one's look. Left out when there's only one photo. */
+  onLookToAll?: () => void
   onForward: () => void
   onBackward: () => void
   onDelete: () => void
@@ -54,6 +57,22 @@ const CUTOUT_OPTIONS: { mode: CutoutMode; icon: IconName; label: string; hint: s
 const DEFAULT_OUTLINE: LayerOutline = { color: '#ffffff', width: 12 }
 const DEFAULT_SHADOW: LayerShadow = { color: '#000000', blur: 24, offsetX: 0, offsetY: 12, opacity: 0.35 }
 const MAX_BLUR = 60
+
+const LOOK_CHOICES: { id: FilmLookId | null; name: string }[] = [{ id: null, name: 'None' }, ...FILM_LOOKS]
+
+type LookSlider = Exclude<keyof LayerLook, 'film'>
+
+/** Sliders from 0 are percentages; sliders from -1 are signed, with 0 in the middle. */
+const FILM_SLIDERS: { key: LookSlider; label: string; min: number }[] = [
+  { key: 'grain', label: 'Grain', min: 0 },
+  { key: 'vignette', label: 'Vignette', min: 0 },
+]
+const ADJUST_SLIDERS: { key: LookSlider; label: string; min: number }[] = [
+  { key: 'brightness', label: 'Brightness', min: -1 },
+  { key: 'contrast', label: 'Contrast', min: -1 },
+  { key: 'saturation', label: 'Saturation', min: -1 },
+  { key: 'warmth', label: 'Warmth', min: -1 },
+]
 
 function ToolButton({
   icon,
@@ -109,6 +128,7 @@ export function ImageControls({
   facesOnEdge,
   onNudge,
   onEffects,
+  onLookToAll,
   onForward,
   onBackward,
   onDelete,
@@ -259,6 +279,68 @@ export function ImageControls({
     </>
   )
 
+  const look = layer.look ?? NEUTRAL_LOOK
+  const setLook = (next: LayerLook, coalesce?: string) =>
+    onEffects({ look: isNeutralLook(next) ? undefined : next }, coalesce)
+  const lookSlider = ({ key, label, min }: { key: LookSlider; label: string; min: number }) => {
+    const value = Math.round(look[key] * 100)
+    return (
+      <label key={key} className="range-field">
+        <span>{label}</span>
+        <input
+          type="range"
+          min={min}
+          max={1}
+          step={0.01}
+          value={look[key]}
+          onChange={(e) => setLook({ ...look, [key]: Number(e.target.value) }, `look-${key}`)}
+        />
+        <output>{min < 0 ? `${value > 0 ? '+' : ''}${value}` : `${value}%`}</output>
+      </label>
+    )
+  }
+  const looks = (
+    <>
+      <div className="look-swatches" role="radiogroup" aria-label="Film look">
+        {LOOK_CHOICES.map((c) => (
+          <button
+            key={c.id ?? 'none'}
+            type="button"
+            role="radio"
+            aria-checked={look.film === c.id}
+            className={`look-swatch ${look.film === c.id ? 'on' : ''}`}
+            onClick={() => {
+              if (look.film !== c.id) setLook(withFilm(look, c.id))
+            }}
+          >
+            <img src={lookSwatch(layer, c.id)} alt="" width={60} height={60} />
+            <span>{c.name}</span>
+          </button>
+        ))}
+      </div>
+      {look.film ? lookSlider({ key: 'strength', label: 'Strength', min: 0 }) : null}
+      {FILM_SLIDERS.map(lookSlider)}
+      <span className="look-heading">Adjust</span>
+      {ADJUST_SLIDERS.map(lookSlider)}
+      <div className="look-actions">
+        {onLookToAll ? (
+          <button
+            type="button"
+            className="look-btn"
+            title="Give every photo in the carousel this look"
+            disabled={!layer.look}
+            onClick={onLookToAll}
+          >
+            Apply to all photos
+          </button>
+        ) : null}
+        <button type="button" className="look-btn" disabled={!layer.look} onClick={() => onEffects({ look: undefined })}>
+          Reset
+        </button>
+      </div>
+    </>
+  )
+
   return (
     <div className={`image-controls is-${variant}`} role="toolbar" aria-label={`Edit ${layer.name}`}>
       <span className="image-controls-name" title={layer.name}>
@@ -351,6 +433,12 @@ export function ImageControls({
               <div className="popover-panel tool-menu">{cutoutActions}</div>
             </details>
             <details className="popover tool-popover">
+              <summary className="tool-btn" title="Look" aria-label="Look">
+                <Icon name="look" />
+              </summary>
+              <div className="popover-panel effects-panel look-panel">{looks}</div>
+            </details>
+            <details className="popover tool-popover">
               <summary className="tool-btn" title="Effects" aria-label="Effects">
                 <Icon name="sparkle" />
               </summary>
@@ -375,10 +463,16 @@ export function ImageControls({
       </div>
 
       {isSheet ? (
-        <div className="control-fields effects-fields">
-          <span className="control-label">Effects</span>
-          {effects}
-        </div>
+        <>
+          <div className="control-fields effects-fields">
+            <span className="control-label">Look</span>
+            {looks}
+          </div>
+          <div className="control-fields effects-fields">
+            <span className="control-label">Effects</span>
+            {effects}
+          </div>
+        </>
       ) : null}
     </div>
   )

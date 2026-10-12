@@ -1,10 +1,11 @@
 import { getImage } from './image-registry'
-import type { Layer, LayerShadow } from '../types'
+import { gradePixels, grainSeed, isNeutralLook, lookKey, NEUTRAL_LOOK, withFilm } from './film-looks'
+import type { FilmLookId, Layer, LayerLook, LayerShadow } from '../types'
 
 /**
- * Outline, shadow and blur for image layers. Each is drawn by `drawLayerContent`, which both the
- * stage and `renderSlide` call, so the editor, the thumbnails and the export match. The outline and
- * the blur are built once into canvases at the layer's size and cached, so redraws stay cheap.
+ * Outline, shadow, blur and look for image layers. Each is drawn by `drawLayerContent`, which both
+ * the stage and `renderSlide` call, so the editor, the thumbnails and the export match. The outline,
+ * the blur and the graded look are built once into canvases and cached, so redraws stay cheap.
  */
 
 /** The widest outline, in world pixels. Outline canvases are padded by this much on every side. */
@@ -15,10 +16,19 @@ const OUTLINE_MAX_AREA = 2_000_000
 const BLUR_DETAIL = 4
 /** ...and no bigger than this, since blur hides the detail a larger copy would keep. */
 const BLUR_MAX_AREA = 1_000_000
+/** Graded copies are at least this many pixels (or the photo's own), so small draws share one. */
+const LOOK_MIN_AREA = 1_000_000
+/** A copy with grain can outgrow its photo, to keep the grain fine on a stretched one, up to this. */
+const LOOK_MAX_AREA = 24_000_000
+/** Pixels of graded copies kept in all. A whole carousel can share one look, so it's a budget. */
+const LOOK_CACHE_PIXELS = 32_000_000
+/** A grain's size in world pixels, so it looks the same on every slide whatever the photo's size. */
+const GRAIN_SIZE = 1.5
+const SWATCH_SIZE = 120
 const CACHE_SIZE = 4
 const FAR = 1e20
 
-function cached<V>(cache: Map<string, V>, key: string, make: () => V): V {
+function cached<V>(cache: Map<string, V>, key: string, make: () => V, size = CACHE_SIZE): V {
   const hit = cache.get(key)
   if (hit !== undefined) {
     cache.delete(key)
@@ -27,7 +37,7 @@ function cached<V>(cache: Map<string, V>, key: string, make: () => V): V {
   }
   const value = make()
   cache.set(key, value)
-  if (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value!)
+  if (cache.size > size) cache.delete(cache.keys().next().value!)
   return value
 }
 
@@ -251,13 +261,94 @@ function applyShadow(ctx: CanvasRenderingContext2D, shadow: LayerShadow, pxPerWo
   ctx.shadowOffsetY = shadow.offsetY * pxPerWorld
 }
 
+// ---------- look ----------
+
+const lookCache = new Map<string, HTMLCanvasElement>()
+let lookCachePixels = 0
+
+/**
+ * A copy of `source` with the look applied, in the photo's own shape (the box stretches it, as it
+ * does the photo). It's as large as it's drawn, in steps of √2 so resizing a layer rarely regrades
+ * it, and no larger than the photo unless it has grain. The vignette is relative to the photo and
+ * the grain to the world, so a smaller copy looks like the export, only softer.
+ */
+function gradedImage(
+  layer: Layer,
+  source: CanvasImageSource,
+  sourceKey: string,
+  look: LayerLook,
+  pxPerWorld: number,
+): HTMLCanvasElement {
+  const natural = layer.naturalWidth * layer.naturalHeight
+  const most = look.grain ? Math.max(natural, LOOK_MAX_AREA) : natural
+  const drawn = layer.width * layer.height * pxPerWorld * pxPerWorld
+  const wanted = Math.sqrt(Math.min(most, Math.max(drawn, LOOK_MIN_AREA)) / natural)
+  const step = Math.SQRT2 ** Math.ceil(Math.log(wanted) / Math.log(Math.SQRT2))
+  const scale = Math.min(Math.sqrt(most / natural), step)
+  const w = Math.max(1, Math.round(layer.naturalWidth * scale))
+  const h = Math.max(1, Math.round(layer.naturalHeight * scale))
+  // The grain in copy pixels, in 10% steps, so it too only regrades now and then on a resize.
+  const perWorld = Math.sqrt((w * h) / (layer.width * layer.height))
+  const grainCell = 1.1 ** Math.round(Math.log(GRAIN_SIZE * perWorld) / Math.log(1.1))
+  const key = `${sourceKey}|${w}x${h}|${lookKey(look)}|${look.grain ? grainCell.toFixed(3) : ''}`
+
+  const hit = lookCache.get(key)
+  if (hit) {
+    lookCache.delete(key)
+    lookCache.set(key, hit)
+    return hit
+  }
+  const [canvas, ctx] = canvas2d(w, h, true)
+  ctx.drawImage(source, 0, 0, w, h)
+  const pixels = ctx.getImageData(0, 0, w, h)
+  gradePixels(pixels.data, w, h, look, grainSeed(layer.imageId), grainCell)
+  ctx.putImageData(pixels, 0, 0)
+
+  lookCache.set(key, canvas)
+  lookCachePixels += w * h
+  for (const [oldKey, old] of lookCache) {
+    if (lookCachePixels <= LOOK_CACHE_PIXELS || old === canvas) break
+    lookCache.delete(oldKey)
+    lookCachePixels -= old.width * old.height
+    // Safari keeps a canvas's memory until it's collected; emptying it frees that now.
+    old.width = 0
+    old.height = 0
+  }
+  return canvas
+}
+
+const swatchCache = new Map<string, string>()
+
+/** A small square of the layer's photo in a preset (or none), as a data URL for the look picker. */
+export function lookSwatch(layer: Layer, film: FilmLookId | null): string | undefined {
+  const image = getImage(layer.imageId)?.image
+  if (!image) return undefined
+  const make = () => {
+    const [canvas, ctx] = canvas2d(SWATCH_SIZE, SWATCH_SIZE, true)
+    const side = Math.min(layer.naturalWidth, layer.naturalHeight)
+    const sx = (layer.naturalWidth - side) / 2
+    const sy = (layer.naturalHeight - side) / 2
+    ctx.drawImage(image, sx, sy, side, side, 0, 0, SWATCH_SIZE, SWATCH_SIZE)
+    const look = withFilm(NEUTRAL_LOOK, film)
+    if (!isNeutralLook(look)) {
+      const pixels = ctx.getImageData(0, 0, SWATCH_SIZE, SWATCH_SIZE)
+      const grainCell = (GRAIN_SIZE * SWATCH_SIZE) / Math.min(layer.width, layer.height)
+      gradePixels(pixels.data, SWATCH_SIZE, SWATCH_SIZE, look, grainSeed(layer.imageId), grainCell)
+      ctx.putImageData(pixels, 0, 0)
+    }
+    return canvas.toDataURL('image/png')
+  }
+  return cached(swatchCache, `${layer.imageId}|${film}`, make, 40)
+}
+
 // ---------- drawing ----------
 
 /**
  * Draw a layer into its own unrotated box, (0, 0) to (width, height), with the context already
- * moved, turned and mirrored into place: the outline first, then the image. The shadow falls from
- * the outline when there is one, otherwise from the image. `pxPerWorld` is canvas pixels per
- * world pixel. `shadow: false` skips the shadow, for the stage's faded copy under the slides.
+ * moved, turned and mirrored into place: the outline first, then the image, blurred and then
+ * graded. The shadow falls from the outline when there is one, otherwise from the image.
+ * `pxPerWorld` is canvas pixels per world pixel. `shadow: false` skips the shadow, for the stage's
+ * faded copy under the slides.
  */
 export function drawLayerContent(
   ctx: CanvasRenderingContext2D,
@@ -279,6 +370,9 @@ export function drawLayerContent(
     ctx.drawImage(silhouette.canvas, -OUTLINE_MAX, -OUTLINE_MAX, silhouette.width, silhouette.height)
     ctx.shadowColor = 'transparent'
   }
-  ctx.drawImage(source, 0, 0, layer.width, layer.height)
+  // Graded after the blur, so the grain stays sharp on a blurred background.
+  const look = layer.look && !isNeutralLook(layer.look) ? layer.look : null
+  const graded = look ? gradedImage(layer, source, sourceKey, look, pxPerWorld) : source
+  ctx.drawImage(graded, 0, 0, layer.width, layer.height)
   ctx.restore()
 }

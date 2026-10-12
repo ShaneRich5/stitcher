@@ -31,6 +31,9 @@ The landing page at `/` links to each tool.
   lets you tap the one to keep (Shift-click or long-press takes a part away) before cutting it out.
 - **Effects** per image: an outline and a drop shadow that follow a cutout's edge (the sticker
   look), and blur.
+- **Look** per image: eight film looks with a strength, grain and a vignette, plus brightness,
+  contrast, saturation and warmth. **Apply to all photos** gives the whole carousel one look, so
+  photos from different phones and days read as one set.
 - A **low resolution** warning in the toolbar and on the affected slides when a photo is stretched
   more than 1.5× and would export soft.
 - **Faces on a slide edge** are marked on the canvas, since a face cut in half looks broken when the
