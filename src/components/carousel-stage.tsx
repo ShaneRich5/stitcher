@@ -590,6 +590,9 @@ export function CarouselStage({
     const h = Math.max(8, Math.abs(node.height() * node.scaleY()))
     const flipX = sx < 0
     node.setAttrs({ width: w, height: h, scaleX: flipX ? -1 : 1, scaleY: 1, offsetX: w / 2, offsetY: h / 2 })
+    // React only re-applies props that changed, and the scale's prop is the same as before the
+    // transform, so the clipped copy would keep the transform's scale on top of its new size.
+    syncTwin(node.getStage(), layerId, node)
     onLayerChange(layerId, {
       x: node.x() - w / 2,
       y: node.y() - h / 2,
