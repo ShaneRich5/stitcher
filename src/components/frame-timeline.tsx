@@ -25,6 +25,8 @@ type Props = {
   onDuration: (id: string, ms: number) => void
   onResetDuration: (id: string) => void
   onApplyToAll: (ms: number) => void
+  /** Studio has its own transport row and puts the frame's timing in the inspector, so it hides this. */
+  head?: boolean
 }
 
 const STEP_MS = 100
@@ -49,8 +51,12 @@ export function FrameTimeline({
   onDuration,
   onResetDuration,
   onApplyToAll,
+  head = true,
 }: Props) {
   const addRef = useRef<HTMLInputElement>(null)
+  const trackRef = useRef<HTMLOListElement>(null)
+  /** A frame's right edge being dragged to change its hold, at the scale the track had when it started. */
+  const resizing = useRef<{ id: string; startX: number; startMs: number; msPerPx: number } | null>(null)
   const playheadRef = useRef<HTMLDivElement>(null)
   const dragFrom = useRef<number | null>(null)
   const [dropAt, setDropAt] = useState<number | null>(null)
@@ -84,56 +90,58 @@ export function FrameTimeline({
 
   return (
     <section className="timeline" aria-label="Timeline">
-      <div className="timeline-head">
-        <strong>Timeline</strong>
-        <span className="timeline-elapsed">
-          {seconds(starts[activeIndex] ?? 0)} <span>/ {seconds(total)}</span>
-        </span>
+      {head ? (
+        <div className="timeline-head">
+          <strong>Timeline</strong>
+          <span className="timeline-elapsed">
+            {seconds(starts[activeIndex] ?? 0)} <span>/ {seconds(total)}</span>
+          </span>
 
-        {active ? (
-          <div className="timeline-frame-timing">
-            <span className="control-label">Frame {activeIndex + 1}</span>
-            <div className="segmented">
-              <button
-                type="button"
-                className="seg-btn seg-icon"
-                aria-label="Hold this frame for less time"
-                disabled={activeOwn <= MIN_DELAY_MS}
-                onClick={() => onDuration(active.id, activeOwn - STEP_MS)}
-              >
-                <Icon name="minus" size={16} />
-              </button>
-              <span className="seg-btn seg-readout">{activeOwn}ms</span>
-              <button
-                type="button"
-                className="seg-btn seg-icon"
-                aria-label="Hold this frame for longer"
-                disabled={activeOwn >= MAX_DELAY_MS}
-                onClick={() => onDuration(active.id, activeOwn + STEP_MS)}
-              >
-                <Icon name="plus" size={16} />
-              </button>
-            </div>
-            <button
-              type="button"
-              className="btn btn-outline"
-              onClick={() => onApplyToAll(activeOwn)}
-            >
-              Apply to all
-            </button>
-            {active.holdMs !== undefined ? (
+          {active ? (
+            <div className="timeline-frame-timing">
+              <span className="control-label">Frame {activeIndex + 1}</span>
+              <div className="segmented">
+                <button
+                  type="button"
+                  className="seg-btn seg-icon"
+                  aria-label="Hold this frame for less time"
+                  disabled={activeOwn <= MIN_DELAY_MS}
+                  onClick={() => onDuration(active.id, activeOwn - STEP_MS)}
+                >
+                  <Icon name="minus" size={16} />
+                </button>
+                <span className="seg-btn seg-readout">{activeOwn}ms</span>
+                <button
+                  type="button"
+                  className="seg-btn seg-icon"
+                  aria-label="Hold this frame for longer"
+                  disabled={activeOwn >= MAX_DELAY_MS}
+                  onClick={() => onDuration(active.id, activeOwn + STEP_MS)}
+                >
+                  <Icon name="plus" size={16} />
+                </button>
+              </div>
               <button
                 type="button"
                 className="btn btn-outline"
-                title="Follow the shared speed again"
-                onClick={() => onResetDuration(active.id)}
+                onClick={() => onApplyToAll(activeOwn)}
               >
-                Reset
+                Apply to all
               </button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+              {active.holdMs !== undefined ? (
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  title="Follow the shared speed again"
+                  onClick={() => onResetDuration(active.id)}
+                >
+                  Reset
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {doc.frames.length ? (
         <div className="timeline-track-wrap">
@@ -146,7 +154,7 @@ export function FrameTimeline({
             <li className="timeline-ruler-end">{seconds(total)}</li>
           </ol>
 
-          <ol className="timeline-track">
+          <ol className="timeline-track" ref={trackRef}>
             {doc.frames.map((f, i) => {
               const ms = durations[i] ?? doc.delayMs
               return (
@@ -158,6 +166,11 @@ export function FrameTimeline({
                   style={{ flexGrow: ms }}
                   draggable
                   onDragStart={(e) => {
+                    // Pressing the edge resizes the frame instead of moving it.
+                    if (resizing.current) {
+                      e.preventDefault()
+                      return
+                    }
                     dragFrom.current = i
                     e.dataTransfer.effectAllowed = 'move'
                     e.dataTransfer.setData('text/x-stitcher-frame', String(i))
@@ -204,6 +217,35 @@ export function FrameTimeline({
                       </span>
                     </span>
                   </button>
+                  <span
+                    className="timeline-edge"
+                    aria-hidden="true"
+                    title="Drag to hold this frame longer or shorter"
+                    onPointerDown={(e) => {
+                      const track = trackRef.current
+                      if (!track) return
+                      e.stopPropagation()
+                      e.currentTarget.setPointerCapture(e.pointerId)
+                      resizing.current = {
+                        id: f.id,
+                        startX: e.clientX,
+                        startMs: frameDuration(doc, f),
+                        msPerPx: total / Math.max(1, track.getBoundingClientRect().width),
+                      }
+                      onSelect(i)
+                    }}
+                    onPointerMove={(e) => {
+                      const r = resizing.current
+                      if (!r) return
+                      onDuration(r.id, Math.round((r.startMs + (e.clientX - r.startX) * r.msPerPx) / 10) * 10)
+                    }}
+                    onPointerUp={() => {
+                      resizing.current = null
+                    }}
+                    onPointerCancel={() => {
+                      resizing.current = null
+                    }}
+                  />
                   <div className="frame-thumb-actions">
                     <button
                       type="button"

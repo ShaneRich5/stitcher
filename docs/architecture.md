@@ -24,18 +24,26 @@ src/
     slide-strip.tsx           Thumbnails of the slides as posted
     swipe-preview.tsx         Feed-style swipe preview dialog
     icons.tsx, app-nav.tsx    Shared UI
-    gif-maker.tsx             GIF tool: state, playback, keyboard, drag/drop, paste, export
-    gif-controls.tsx          Whole-animation controls (speed, size, format, style)
-    frame-strip.tsx           Frame thumbnails; drag to reorder (default view)
-    frame-timeline.tsx        Advanced view: frames sized by hold, ruler, playhead, per-frame timing
-    collage-maker.tsx         Collage tool: cutout queue, playback, keyboard, drag/drop, paste, export
-    collage-controls.tsx      Collage controls (format, export type, timing, overlay)
-    collage-strip.tsx         Photo thumbnails with cutout status; drag to reorder
+    inspector-sections.tsx    Studio inspector shell for GIF and collage: sections on desktop, tabs on phones
+    gif-maker.tsx             GIF tool: state, playback, keyboard, drag/drop, paste, export; Quick or Studio
+    gif-quick.tsx             Quick: chips, the player with its neighbours, frame pill, Speed panel, frame toolbar
+    gif-inspector.tsx         Studio inspector: this frame's hold, playback, output, checks
+    gif-screen.tsx            One frame letterboxed into the output size, drawn by drawFrame like the export
+    frame-strip.tsx           Frame thumbnails; drag to reorder (Studio's strip view, and on phones)
+    frame-timeline.tsx        Studio's timeline: frames sized by hold, ruler, playhead, drag an edge to hold
+    collage-maker.tsx         Collage tool: cutout queue, playback, keyboard, drag/drop, paste, export; Quick or Studio
+    collage-quick.tsx         Quick: chips, player, photo card, Pace panel, photo toolbar
+    collage-photos.tsx        Photo rows with cutout status and retry; drag to reorder
+    collage-sequence.tsx      Studio's sequence: a lane per photo (subject in, photo behind, covered)
+    collage-inspector.tsx     Studio inspector: timing, motion, overlay, cutout, checks; video fields
   lib/
     carousel.ts               Doc helpers: makeLayer, zoom, relayout, slide add/remove
-    gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay
+    gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay, speed presets,
+                              output size and the bars / soft frame checks
     handoff.ts                Frames passed between tools in memory (carousel slides -> GIF tool)
-    collage.ts                CollageDoc helpers, timing, and drawCollageFrame (preview + export)
+    collage.ts                CollageDoc helpers, timing, pace presets, the sequence schedule, and
+                              drawCollageFrame (preview + export)
+    use-element-size.ts, use-stored-mode.ts  A measured element's size; Quick / Studio remembered per tool
     image-registry.ts         imageId -> decoded image, object URL and source blob
     idb.ts, persist-project.ts  IndexedDB autosave of the carousel
     snap-guides.ts            Snap targets and snapBox()

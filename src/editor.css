@@ -1470,7 +1470,6 @@ select:focus-visible {
 }
 
 /* ---------- gif tool ---------- */
-.control-readout,
 .nav-readout {
   font: 12px var(--mono);
   color: var(--text);
@@ -1487,39 +1486,6 @@ select:focus-visible {
   }
 }
 
-.gif-stage {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.gif-stage-img {
-  max-width: calc(100% - 48px);
-  /* Leaves room for the floating playback bar at the bottom of the workspace. */
-  max-height: calc(100% - 96px);
-  object-fit: contain;
-  display: block;
-}
-
-.playback-bar {
-  position: absolute;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  box-shadow: var(--shadow);
-}
-
 .playback-count {
   font: 12px var(--mono);
   color: var(--text);
@@ -1527,10 +1493,6 @@ select:focus-visible {
   min-width: 56px;
   text-align: center;
   white-space: nowrap;
-}
-
-.play-btn {
-  color: var(--accent);
 }
 
 /* The strip doubles as the timeline, so frames read left to right in playback order. */
@@ -1577,33 +1539,6 @@ select:focus-visible {
 
 .frame-add {
   width: 64px;
-}
-
-/* ---------- frame views (strip / timeline) ---------- */
-.frames-pane {
-  border-top: 1px solid var(--border);
-}
-
-.frames-pane .slide-strip,
-.frames-pane .timeline {
-  border-top: 0;
-}
-
-.view-switch {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 8px 20px 0;
-}
-
-.view-switch .seg-btn {
-  gap: 6px;
-}
-
-.view-switch-hint {
-  font-size: 12px;
-  color: var(--text);
 }
 
 .timeline {
@@ -1801,25 +1736,6 @@ select:focus-visible {
   .timeline-playhead {
     transition: none !important;
   }
-
-  .slide-strip-item.is-cutting .slide-thumb-frame {
-    animation: none !important;
-  }
-}
-
-/* The phone dock stacks the same control groups instead of hiding them behind a popover. */
-.carousel-controls.is-stacked {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-}
-
-.carousel-controls.is-stacked .control-group {
-  flex-wrap: wrap;
-}
-
-.carousel-controls.is-stacked .control-actions {
-  margin-left: 0;
 }
 
 .control-fields {
@@ -2020,36 +1936,6 @@ select:focus-visible {
 .collage-scrub {
   width: min(260px, 40vw);
   accent-color: var(--accent);
-}
-
-.collage-thumb-status {
-  font: 10px var(--mono);
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  white-space: nowrap;
-}
-
-.collage-thumb-status.is-failed {
-  color: #c0392b;
-  border-color: currentColor;
-}
-
-/* The retry button stays visible, since a failed cutout needs attention. */
-.frame-thumb-actions .collage-retry {
-  display: inline-flex;
-}
-
-.slide-strip-item.is-cutting .slide-thumb-frame {
-  animation: collage-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes collage-pulse {
-  50% {
-    opacity: 0.45;
-  }
 }
 
 /* ---------- Quick / Studio ---------- */
@@ -2480,8 +2366,11 @@ select:focus-visible {
 }
 
 .inspector-title span {
+  overflow: hidden;
   font-size: 12px;
   color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inspector-section {
@@ -2884,5 +2773,1184 @@ select:focus-visible {
 
   .app-nav-actions .btn {
     padding: 8px 12px;
+  }
+}
+
+/* ---------- GIF and collage: Quick ---------- */
+/* Quick is one column: chips for the few settings, the preview big, then the tool's dark panel and
+   the selected frame or photo's dark toolbar, as in the Quick & Studio mockups. */
+.quick {
+  --chip-bg: color-mix(in srgb, var(--bg) 60%, #fff);
+  --panel: #2b2724;
+  --panel-tile: #3a3531;
+  --panel-text: #f3f0ea;
+  --panel-muted: #c9c2b6;
+  --panel-ring: #a48cf5;
+
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (prefers-color-scheme: dark) {
+  .quick {
+    --chip-bg: color-mix(in srgb, var(--bg) 85%, #fff);
+  }
+}
+
+.quick-chips {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px 6px;
+}
+
+.quick-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--text-h);
+  font: 600 14px var(--sans);
+  cursor: pointer;
+}
+
+.quick-chip:hover {
+  border-color: var(--accent-border);
+}
+
+.quick-chip-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font: 600 12px var(--mono);
+}
+
+/* The color picker covers its chip, so the whole chip opens it. */
+.quick-chip-color {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.quick-chips .popover-panel {
+  right: auto;
+  left: 0;
+}
+
+.quick-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--chip-bg);
+}
+
+.quick-seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-h);
+  font: 14px var(--sans);
+  cursor: pointer;
+}
+
+.quick-seg button span {
+  color: var(--text);
+}
+
+.quick-seg button.on {
+  background: var(--text-h);
+  color: var(--bg);
+}
+
+.quick-seg button.on span {
+  color: color-mix(in srgb, var(--bg) 72%, var(--text));
+}
+
+.quick-start-over {
+  min-height: 44px;
+  border-radius: 999px;
+  font-size: 14px;
+}
+
+/* The loop playing: the current frame ringed, its neighbours faded either side. */
+.gif-player {
+  position: relative;
+  flex: 1;
+  min-height: 180px;
+  margin: 12px 24px 0;
+}
+
+.gif-player-row {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+
+.gif-screen {
+  display: block;
+}
+
+.gif-player-current {
+  position: relative;
+  flex: none;
+  border-radius: 14px;
+  outline: 2px solid var(--accent);
+  outline-offset: 8px;
+}
+
+.gif-player-current .gif-screen {
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgba(29, 27, 24, 0.08),
+    0 10px 24px rgba(29, 27, 24, 0.1);
+}
+
+.gif-player-ghost {
+  flex: none;
+  overflow: hidden;
+  border-radius: 12px;
+  opacity: 0.38;
+}
+
+.player-badge {
+  position: absolute;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(29, 27, 24, 0.72);
+  color: #fff;
+  font: 500 12px var(--mono);
+}
+
+.player-badge.is-top {
+  top: 10px;
+  left: 10px;
+}
+
+.player-badge.is-bottom {
+  right: 10px;
+  bottom: 10px;
+}
+
+/* Play and the frames in a row, under the player. */
+.frame-pill {
+  flex: none;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+  margin-top: 18px;
+  padding: 6px 8px 6px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--chip-bg);
+  box-shadow: 0 6px 18px rgba(29, 27, 24, 0.06);
+}
+
+.frame-pill-play {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text-h);
+  color: var(--bg);
+  cursor: pointer;
+}
+
+.frame-pill-play:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.frame-pill-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.frame-pill-list li {
+  flex: none;
+  cursor: grab;
+}
+
+.frame-pill-thumb {
+  display: block;
+  width: 40px;
+  height: 50px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.frame-pill-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.frame-pill-thumb[aria-current='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.frame-pill-list li.drop-target .frame-pill-thumb {
+  outline: 2px dashed var(--accent-border);
+  outline-offset: 2px;
+}
+
+.frame-pill-add {
+  flex: none;
+  width: 40px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.frame-pill-add:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* The dark panel and toolbar at the bottom. */
+.quick-dock {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 16px;
+}
+
+.quick-panel {
+  width: min(640px, 100%);
+  box-sizing: border-box;
+  padding: 14px 18px 16px;
+  border-radius: 22px;
+  background: var(--panel);
+  color: var(--panel-text);
+  box-shadow: 0 18px 40px rgba(29, 27, 24, 0.22);
+}
+
+.quick-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 12px;
+}
+
+.quick-panel-head h2 {
+  margin: 0;
+  font: 700 18px var(--heading);
+  color: inherit;
+}
+
+.quick-panel-head span {
+  font-size: 13px;
+  color: var(--panel-muted);
+}
+
+.quick-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 12px;
+}
+
+.quick-tile {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: 13px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-tile strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.quick-tile > span:last-child {
+  display: block;
+  font-size: 12px;
+  color: var(--panel-muted);
+}
+
+.quick-tile-art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--panel-tile);
+  outline: 3px solid transparent;
+  outline-offset: 2px;
+}
+
+.quick-tile[aria-pressed='true'] .quick-tile-art,
+.quick-tile[aria-checked='true'] .quick-tile-art {
+  outline-color: var(--panel-ring);
+}
+
+.speed-ticks {
+  gap: 5px;
+}
+
+.speed-ticks span {
+  width: 4px;
+  height: 26px;
+  border-radius: 2px;
+  background: #8a8378;
+}
+
+.speed-ticks span.is-short {
+  height: 16px;
+}
+
+.quick-tile[aria-pressed='true'] .speed-ticks span {
+  background: var(--panel-text);
+}
+
+/* Three cards, closer together for a quicker pace. */
+.pace-cards span {
+  position: absolute;
+  top: 11px;
+  left: 16px;
+  width: 20px;
+  height: 30px;
+  border-radius: 4px;
+  background: #8a8378;
+}
+
+.pace-cards span:nth-child(2) {
+  left: calc(16px + var(--spread));
+  background: #b8b0a2;
+}
+
+.pace-cards span:nth-child(3) {
+  left: calc(16px + var(--spread) * 2);
+  background: var(--panel-text);
+}
+
+/* A photo and the subject in front of it, both pushed in when depth is on. */
+.depth-art span {
+  position: absolute;
+  transition: transform 200ms ease;
+}
+
+.depth-art span:first-child {
+  width: 44px;
+  height: 28px;
+  border-radius: 4px;
+  background: #8a8378;
+}
+
+.depth-art span:last-child {
+  width: 16px;
+  height: 24px;
+  border-radius: 8px 8px 3px 3px;
+  background: var(--panel-text);
+}
+
+.depth-art.is-on span:first-child {
+  transform: scale(1.06);
+}
+
+.depth-art.is-on span:last-child {
+  transform: scale(1.3);
+}
+
+.quick-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 20px;
+  background: var(--dock);
+  color: #f3f0ea;
+  box-shadow: 0 18px 40px rgba(29, 27, 24, 0.22);
+}
+
+.quick > .quick-toolbar {
+  flex: none;
+  align-self: center;
+  margin: 0 16px 16px;
+}
+
+.quick-toolbar .tool-btn {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.quick-toolbar-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 220px;
+  padding: 0 6px;
+  overflow: hidden;
+  font: 12px var(--mono);
+  color: var(--panel-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.quick-toolbar-thumb,
+.quick-toolbar .photo-thumb {
+  flex: none;
+  width: 28px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 7px;
+}
+
+.quick-toolbar-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.quick-toolbar-sep {
+  width: 1px;
+  height: 28px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.quick-hold {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.quick-hold > span {
+  margin-right: 4px;
+}
+
+.quick-hold .tool-btn:not(.quick-link) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.quick-hold output {
+  min-width: 56px;
+  text-align: center;
+  font: 500 13px var(--mono);
+}
+
+.quick-link {
+  color: var(--panel-muted);
+  text-decoration: underline;
+}
+
+/* Collage Quick: the player on the left, the photos and pace on the right. */
+.collage-quick {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 500px);
+  gap: 28px;
+  padding: 14px 28px;
+}
+
+.collage-quick-player {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.collage-quick-player .collage-stage {
+  position: relative;
+  inset: auto;
+  align-self: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Centred at its own shape, as large as fits, with room for its ring. */
+.collage-quick-player .collage-canvas {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  max-width: calc(100% - 22px);
+  max-height: calc(100% - 22px);
+  border-radius: 14px;
+  outline: 2px solid var(--accent);
+  outline-offset: 8px;
+}
+
+.collage-transport {
+  margin-top: 0;
+  padding-right: 14px;
+}
+
+.collage-quick-side {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.quick-card {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--chip-bg);
+}
+
+.quick-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 2px 8px 8px;
+}
+
+.quick-card-head h2 {
+  margin: 0;
+  font: 700 18px var(--heading);
+}
+
+.quick-card-head span {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.collage-quick-side .quick-panel {
+  width: 100%;
+}
+
+/* ---------- collage photos (Quick's card, Studio's side panel and phone tab) ---------- */
+.photo-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.photo-row {
+  padding-right: 8px;
+}
+
+.photo-thumb {
+  flex: none;
+  display: block;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photo-status.is-ready {
+  color: #15803d;
+}
+
+.photo-status.is-failed {
+  color: #b42318;
+}
+
+@media (prefers-color-scheme: dark) {
+  .photo-status.is-ready {
+    color: #86efac;
+  }
+
+  .photo-status.is-failed {
+    color: #f97066;
+  }
+}
+
+.photo-progress {
+  flex: none;
+  width: 48px;
+  height: 4px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) 0 40%, var(--accent-bg) 40% 100%);
+  background-size: 200% 100%;
+  animation: photo-progress 1.1s linear infinite;
+}
+
+@keyframes photo-progress {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.photo-at {
+  flex: none;
+  font: 12px var(--mono);
+  color: var(--text);
+}
+
+.btn.photo-retry {
+  flex: none;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+/* ---------- GIF and collage: Studio ---------- */
+/* The GIF tool has nothing to list on the left, so its Studio is the rail, the canvas and the inspector. */
+.studio.is-wide {
+  grid-template-columns: 52px minmax(0, 1fr) 312px;
+}
+
+@media (max-width: 1180px) {
+  .studio.is-wide {
+    grid-template-columns: 52px minmax(0, 1fr) 280px;
+  }
+}
+
+.studio-hint {
+  margin: -2px 4px 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.post-readout {
+  font: 13px var(--mono);
+  color: var(--text-h);
+}
+
+.studio-preview {
+  min-height: 0;
+}
+
+.stage-chip {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  color: var(--text-h);
+  font-size: 12px;
+}
+
+.stage-chip span {
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.studio-preview-frame {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.studio-preview-frame .gif-screen {
+  box-shadow:
+    0 1px 2px rgba(29, 27, 24, 0.1),
+    0 12px 30px rgba(29, 27, 24, 0.14);
+}
+
+.studio-preview .collage-stage {
+  inset: 56px 24px 24px;
+}
+
+/* On a phone the canvas row holds the workspace, so it takes the row's height. */
+.studio-canvas > .workspace {
+  height: 100%;
+  min-height: 0;
+}
+
+.studio.is-phone .studio-preview .collage-stage {
+  inset: 52px 12px 12px;
+}
+
+/* The row under the canvas: transport, then the frames or the collage's lanes. */
+.sequence {
+  flex: none;
+  padding: 0 16px 14px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 96%, #fff);
+}
+
+.sequence-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-height: 52px;
+  font-size: 13px;
+}
+
+.sequence-transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sequence-transport .icon-btn {
+  display: grid;
+  place-items: center;
+}
+
+.sequence-play {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text-h);
+  color: var(--bg);
+  cursor: pointer;
+}
+
+.sequence-play:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sequence-time {
+  font: 500 13px var(--mono);
+  color: var(--text-h);
+}
+
+.sequence-time span,
+.sequence-summary,
+.sequence-hint {
+  color: var(--text);
+}
+
+.sequence-hint {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.sequence-views .seg-btn {
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 13px;
+}
+
+.sequence .timeline,
+.sequence .slide-strip {
+  padding: 0;
+  border-top: 0;
+}
+
+.sequence-legend {
+  display: flex;
+  gap: 14px;
+  margin-left: auto;
+  color: var(--text);
+}
+
+.sequence-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 3px;
+}
+
+.legend-swatch.is-subject {
+  background: var(--accent);
+}
+
+.legend-swatch.is-photo {
+  background: #c9a27c;
+}
+
+.legend-swatch.is-hold {
+  border: 1px solid var(--border);
+  background: repeating-linear-gradient(135deg, var(--border) 0 3px, transparent 3px 6px);
+}
+
+.sequence-body {
+  --name: 124px;
+}
+
+.sequence-ruler {
+  position: relative;
+  height: 18px;
+  margin-left: var(--name);
+  border-bottom: 1px solid var(--border);
+  font: 11px var(--mono);
+  color: var(--text);
+}
+
+.sequence-ruler span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.sequence-lanes {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.sequence-lane {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-h);
+  font: 12px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sequence-lane:hover {
+  background: color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.sequence-lane.on {
+  background: var(--accent-bg);
+  font-weight: 700;
+}
+
+.sequence-lane-name {
+  flex: none;
+  width: var(--name);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sequence-lane-name .photo-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+}
+
+.sequence-lane-name > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sequence-lane-track {
+  position: relative;
+  flex: 1;
+  align-self: stretch;
+}
+
+/* Each bar fades in over its first `--ramp`, as the subject or photo does. */
+.sequence-bar {
+  position: absolute;
+  height: 8px;
+  box-sizing: border-box;
+  border-radius: 3px;
+}
+
+.sequence-bar.is-subject {
+  top: 6px;
+  background: linear-gradient(90deg, transparent 0, var(--accent) var(--ramp), var(--accent) 100%);
+}
+
+.sequence-bar.is-photo {
+  top: 16px;
+  background: linear-gradient(90deg, rgba(201, 162, 124, 0) 0, #c9a27c var(--ramp), #c9a27c 100%);
+}
+
+/* No cutout yet, or none to be had: the subject's bar is only an outline. */
+.sequence-bar.is-subject.is-waiting,
+.sequence-bar.is-subject.is-cutting {
+  border: 1px dashed var(--accent-border);
+  background: repeating-linear-gradient(135deg, var(--accent-bg) 0 6px, transparent 6px 12px);
+}
+
+.sequence-bar.is-subject.is-failed {
+  border: 1.5px dashed #d08b83;
+  background: none;
+}
+
+.sequence-overlay {
+  position: absolute;
+  top: -24px;
+  bottom: 0;
+  left: var(--name);
+  right: 0;
+  pointer-events: none;
+}
+
+.sequence-hold {
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  border-radius: 6px;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--border) 55%, transparent) 0 6px, transparent 6px 12px);
+}
+
+.sequence-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text-h);
+}
+
+.sequence-playhead::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px 3px 6px 6px;
+  background: var(--text-h);
+}
+
+/* A frame's right edge in the timeline: drag it to hold the frame longer or shorter. */
+.timeline-edge {
+  position: absolute;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  z-index: 2;
+  width: 12px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.timeline-edge::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 4px;
+  height: 28px;
+  margin-top: -14px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.timeline-block.active .timeline-edge::after,
+.timeline-edge:hover::after {
+  background: var(--accent);
+}
+
+/* Inspector bits the GIF and collage tools add. */
+.inspector-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.inspector-row > span:first-child {
+  min-width: 62px;
+  color: var(--text);
+}
+
+.inspector-select {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: 13px var(--sans);
+}
+
+.inspector-buttons.is-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.check-card.is-accent {
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
+
+.check-card.is-accent > svg {
+  color: var(--accent);
+}
+
+.soon-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.soon-pill {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fde7df;
+  color: #9a3412;
+  font: 700 11px var(--sans);
+}
+
+@media (prefers-color-scheme: dark) {
+  .soon-pill {
+    background: rgba(232, 119, 90, 0.18);
+    color: #fdba9f;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-progress {
+    animation: none;
+  }
+
+  .depth-art span {
+    transition: none;
+  }
+}
+
+/* ---------- GIF and collage on a phone ---------- */
+@media (max-width: 820px) {
+  .quick {
+    overflow-y: auto;
+  }
+
+  .quick-chips {
+    gap: 8px;
+    padding: 12px 12px 4px;
+  }
+
+  .quick-chip,
+  .quick-start-over {
+    min-height: 40px;
+    padding: 0 12px;
+  }
+
+  /* The ratio or format name is enough on a phone; the hint is in the title. */
+  .quick-seg button span:not(.format-shape) {
+    display: none;
+  }
+
+  .gif-player {
+    flex: none;
+    height: min(52svh, 440px);
+    margin: 8px 12px 0;
+  }
+
+  .quick-dock {
+    padding: 12px;
+  }
+
+  .quick-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .collage-quick {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 8px 12px;
+  }
+
+  .collage-quick-player .collage-stage {
+    flex: none;
+    height: min(60svh, 520px);
+  }
+
+  .quick-card {
+    flex: none;
+    overflow: visible;
+  }
+
+  .quick > .quick-toolbar {
+    margin: 0 12px 12px;
+  }
+
+  .studio.is-phone .sequence {
+    padding: 0 12px 10px;
   }
 }

@@ -12,17 +12,24 @@ import {
   type CollageDoc,
 } from '../lib/collage'
 import { downloadBlob } from '../lib/download'
-import { IMAGE_ACCEPT, listFiles, loadImageFiles } from '../lib/load-image'
+import { listFiles, loadImageFiles } from '../lib/load-image'
 import { removeBackground } from '../lib/remove-background'
 import { useMediaQuery } from '../lib/use-media-query'
+import { useStoredMode } from '../lib/use-stored-mode'
 import type { CollageItem } from '../types'
 import { AppNav } from './app-nav'
-import { CollageControls } from './collage-controls'
-import { CollageStrip } from './collage-strip'
+import { CollageInspector, VideoFields } from './collage-inspector'
+import { CollagePhotos } from './collage-photos'
+import { CollageQuick } from './collage-quick'
+import { CollageSequence } from './collage-sequence'
 import { Icon } from './icons'
+import { ModeSwitch } from './mode-switch'
+import { StartOverDialog } from './start-over-dialog'
+import { StudioRail } from './studio-rail'
 
 /** The preview canvas renders at most this many pixels on its long edge; export is full size. */
 const PREVIEW_MAX = 1280
+const MODE_KEY = 'stitcher.collage.mode'
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -39,15 +46,20 @@ export function CollageMaker() {
   const [cutoutStatus, setCutoutStatus] = useState<string | null>(null)
   /** Export progress 0–1 while encoding; null when idle. */
   const [exportProgress, setExportProgress] = useState<number | null>(null)
-  const [dockTab, setDockTab] = useState<'timing' | 'export'>('timing')
+  const [mode, setMode] = useStoredMode(MODE_KEY)
+  /** The photo the toolbar and inspector act on; the one arriving in the preview until one is picked. */
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [startOverOpen, setStartOverOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const noticeTimer = useRef<number | undefined>(undefined)
   /** Items still waiting for a cutout, processed one at a time by `runCutouts`. */
   const queue = useRef<CollageItem[]>([])
   const queueRunning = useRef(false)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  /** State rather than a ref, so the canvas is drawn again when switching modes mounts a new one. */
+  const [canvasEl, setCanvas] = useState<HTMLCanvasElement | null>(null)
   const isPhone = useMediaQuery('(max-width: 820px)')
+  const studio = mode === 'studio'
 
   const count = doc.items.length
   const hasItems = count > 0
@@ -57,6 +69,7 @@ export function CollageMaker() {
   const waiting = doc.items.filter((i) => !i.cutoutId && !i.failed).length
   const exporting = exportProgress !== null
   const previewScale = Math.min(1, PREVIEW_MAX / Math.max(doc.width, doc.height))
+  const selected = doc.items.find((i) => i.id === selectedId) ?? doc.items[activeIndex] ?? null
 
   const say = (message: string) => {
     setNotice(message)
@@ -86,11 +99,11 @@ export function CollageMaker() {
 
   // Redraw on every time step and every edit (including a cutout arriving).
   useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d')
+    const ctx = canvasEl?.getContext('2d')
     if (!ctx) return
     ctx.setTransform(previewScale, 0, 0, previewScale, 0, 0)
     drawCollageFrame(ctx, doc, time)
-  }, [doc, time, previewScale])
+  }, [canvasEl, doc, time, previewScale])
 
   /** Cut out every queued photo in turn. Runs until the queue is empty, even as more are added. */
   const runCutouts = async () => {
@@ -152,7 +165,8 @@ export function CollageMaker() {
   const retry = (id: string) => {
     const item = doc.items.find((i) => i.id === id)
     if (!item) return
-    setDoc((d) => patchItem(d, id, { failed: false }))
+    // Also clears a cutout that kept the wrong thing, so this redoes one as well as retrying.
+    setDoc((d) => patchItem(d, id, { failed: false, cutoutId: null }))
     queue.current.push(item)
     void runCutouts()
   }
@@ -160,6 +174,16 @@ export function CollageMaker() {
   const remove = (id: string) => {
     queue.current = queue.current.filter((i) => i.id !== id)
     setDoc((d) => removeItem(d, id))
+    if (id === selectedId) setSelectedId(null)
+  }
+
+  const startOver = () => {
+    setStartOverOpen(false)
+    queue.current = []
+    setDoc(createCollageDoc())
+    setSelectedId(null)
+    setTimeMs(0)
+    setPlaying(false)
   }
 
   /** Show the moment photo `index` is complete: its subject and background both in. */
@@ -237,10 +261,6 @@ export function CollageMaker() {
     if (files.length) void addFiles(files)
   }
 
-  const controls = (section: 'bar' | 'timing' | 'export') => (
-    <CollageControls doc={doc} section={section} onPatch={patch} onAddFiles={(files) => void addFiles(files)} />
-  )
-
   const exportLabel = exporting
     ? `Encoding ${Math.round((exportProgress ?? 0) * 100)}%`
     : waiting
@@ -264,9 +284,103 @@ export function CollageMaker() {
     </>
   )
 
+  const select = (index: number) => {
+    const item = doc.items[index]
+    if (!item) return
+    setSelectedId(item.id)
+    seekTo(index)
+  }
+
+  const move = (dir: -1 | 1) => {
+    if (!selected) return
+    const from = doc.items.indexOf(selected)
+    setDoc((d) => moveItem(d, from, from + dir))
+  }
+
+  const canvas = (
+    <canvas
+      ref={setCanvas}
+      className="collage-canvas"
+      width={Math.round(doc.width * previewScale)}
+      height={Math.round(doc.height * previewScale)}
+      aria-label="Collage preview"
+    />
+  )
+
+  const photos = (
+    <CollagePhotos
+      doc={doc}
+      selectedId={selected?.id ?? null}
+      cuttingId={cuttingId}
+      onSelect={select}
+      onReorder={(from, to) => setDoc((d) => moveItem(d, from, to))}
+      onRetry={retry}
+    />
+  )
+
+  const inspector = (
+    <CollageInspector
+      variant={isPhone ? 'sheet' : 'panel'}
+      doc={doc}
+      selected={selected}
+      cuttingId={cuttingId}
+      onPatch={patch}
+      onMove={move}
+      onRemove={remove}
+      onRecut={retry}
+      onShow={select}
+      photos={isPhone ? photos : undefined}
+    />
+  )
+
+  const sequence = (
+    <CollageSequence
+      doc={doc}
+      timeMs={time}
+      durationMs={durationMs}
+      playing={playing}
+      selectedId={selected?.id ?? null}
+      cuttingId={cuttingId}
+      onTogglePlay={() => setPlaying((p) => !p)}
+      onStep={step}
+      onSelect={select}
+      lanes={!isPhone}
+    />
+  )
+
+  const stage = (
+    <div className="workspace studio-preview">
+      {hasItems ? (
+        <>
+          <span className="stage-chip">
+            <strong>{time >= durationMs - doc.holdEndMs ? 'End hold' : `Photo ${activeIndex + 1} arriving`}</strong>
+            <span>
+              {doc.width} × {doc.height}
+            </span>
+          </span>
+          <div className="collage-stage">{canvas}</div>
+        </>
+      ) : (
+        <div className="empty-state">
+          <Icon name="layers" size={28} />
+          <h2>Stack your photos into a video</h2>
+          <p>Drop photos here, paste them, or add them from the tools on the left.</p>
+        </div>
+      )}
+    </div>
+  )
+
+  const studioStatus =
+    studio && !isPhone && hasItems ? (
+      <button type="button" className="btn btn-quiet" onClick={() => setStartOverOpen(true)}>
+        <Icon name="restart" size={16} />
+        Start over
+      </button>
+    ) : null
+
   return (
     <>
-      <AppNav actions={navActions} />
+      <AppNav actions={navActions} status={studioStatus} center={<ModeSwitch mode={mode} onMode={setMode} />} />
       <div
         className={`editor ${dragging ? 'is-dragging' : ''}`}
         onDragOver={(e) => {
@@ -280,132 +394,68 @@ export function CollageMaker() {
         }}
         onDrop={onDrop}
       >
-        {isPhone ? null : <div className="split-bar">{controls('bar')}</div>}
-
-        <div className="workspace">
-          {hasItems ? (
-            <div className="collage-stage">
-              <canvas
-                ref={canvasRef}
-                className="collage-canvas"
-                width={Math.round(doc.width * previewScale)}
-                height={Math.round(doc.height * previewScale)}
-                aria-label="Collage preview"
-              />
-            </div>
-          ) : (
-            <div className="empty-state">
-              <Icon name="layers" size={28} />
-              <h2>Stack your photos into a video</h2>
-              <p>
-                Pick a few photos. Each subject is cut out and stacks on the ones before it, then its
-                background fades in — all on your device.
-              </p>
-              <label className="btn btn-primary">
-                Choose photos
-                <input
-                  type="file"
-                  accept={IMAGE_ACCEPT}
-                  multiple
-                  className="visually-hidden"
-                  onChange={(e) => {
-                    const files = listFiles(e.target.files)
-                    if (files.length) void addFiles(files)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-            </div>
-          )}
-
-          {hasItems ? (
-            <div className="playback-bar" role="toolbar" aria-label="Playback">
-              <button
-                type="button"
-                className="tool-btn"
-                aria-label="Previous photo"
-                title="Previous photo (←)"
-                onClick={() => step(-1)}
-              >
-                <Icon name="chevron-left" />
-              </button>
-              <button
-                type="button"
-                className="tool-btn play-btn"
-                aria-label={playing ? 'Pause' : 'Play'}
-                aria-pressed={playing}
-                title={playing ? 'Pause (space)' : 'Play (space)'}
-                onClick={() => setPlaying((p) => !p)}
-              >
-                <Icon name={playing ? 'pause' : 'play'} />
-              </button>
-              <button
-                type="button"
-                className="tool-btn"
-                aria-label="Next photo"
-                title="Next photo (→)"
-                onClick={() => step(1)}
-              >
-                <Icon name="chevron-right" />
-              </button>
-              <input
-                type="range"
-                className="collage-scrub"
-                aria-label="Position"
-                min={0}
-                max={durationMs}
-                step={10}
-                value={time}
-                onChange={(e) => {
-                  setPlaying(false)
-                  setTimeMs(Number(e.target.value))
-                }}
-              />
-              <span className="playback-count" aria-live="off">
-                {(time / 1000).toFixed(1)} / {(durationMs / 1000).toFixed(1)}s
-              </span>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="frames-pane">
-          <CollageStrip
+        {!studio ? (
+          <CollageQuick
             doc={doc}
-            activeIndex={activeIndex}
-            cuttingId={cuttingId}
-            onSelect={seekTo}
+            canvas={canvas}
+            photos={photos}
+            selected={selected}
+            timeMs={time}
+            durationMs={durationMs}
+            playing={playing}
+            onTogglePlay={() => setPlaying((p) => !p)}
+            onScrub={(ms) => {
+              setPlaying(false)
+              setTimeMs(ms)
+            }}
             onAddFiles={(files) => void addFiles(files)}
+            onPatch={patch}
+            onMove={move}
+            onRecut={retry}
             onRemove={remove}
-            onRetry={retry}
-            onReorder={(from, to) => setDoc((d) => moveItem(d, from, to))}
+            onStudio={() => setMode('studio')}
+            onStartOver={() => setStartOverOpen(true)}
           />
-        </div>
-
-        {isPhone ? (
-          <div className="dock">
-            <div className="dock-tabs" role="tablist" aria-label="Controls">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dockTab === 'timing'}
-                className={dockTab === 'timing' ? 'on' : ''}
-                onClick={() => setDockTab('timing')}
-              >
-                Timing
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dockTab === 'export'}
-                className={dockTab === 'export' ? 'on' : ''}
-                onClick={() => setDockTab('export')}
-              >
-                Export
-              </button>
-            </div>
-            <div className="dock-body">{controls(dockTab)}</div>
+        ) : isPhone ? (
+          <div className="studio is-phone">
+            <div className="studio-canvas">{stage}</div>
+            {hasItems ? sequence : null}
+            <div className="studio-sheet">{inspector}</div>
           </div>
-        ) : null}
+        ) : (
+          <div className="studio">
+            <StudioRail
+              addLabel="Add photos"
+              soon={[
+                { icon: 'text', label: 'Text' },
+                { icon: 'templates', label: 'Grid layouts' },
+              ]}
+              onAddFiles={(files) => void addFiles(files)}
+            />
+            <aside className="studio-side" aria-label="Photos and video">
+              <section className="studio-panel layers-panel" aria-labelledby="photos-heading">
+                <h2 id="photos-heading" className="studio-heading">
+                  Photos
+                </h2>
+                <p className="studio-hint">First to last. Each stacks on the ones before.</p>
+                {photos}
+              </section>
+              <section className="studio-panel post-panel" aria-labelledby="video-heading">
+                <h2 id="video-heading" className="studio-heading">
+                  Video
+                </h2>
+                <VideoFields doc={doc} onPatch={patch} />
+              </section>
+            </aside>
+            <div className="studio-center">
+              {stage}
+              {hasItems ? sequence : null}
+            </div>
+            <aside className="studio-inspector" aria-label="Inspector">
+              {inspector}
+            </aside>
+          </div>
+        )}
 
         {dragging ? <div className="drop-overlay">Drop to add photos</div> : null}
         {cutoutStatus || notice ? (
@@ -414,6 +464,13 @@ export function CollageMaker() {
           </div>
         ) : null}
       </div>
+      {startOverOpen ? (
+        <StartOverDialog
+          description={`This removes all ${count} ${count === 1 ? 'photo' : 'photos'} and their cutouts, and resets the timing. Stitcher only keeps your work in this browser, so it can't be brought back. Export first if you want to keep it.`}
+          onConfirm={startOver}
+          onCancel={() => setStartOverOpen(false)}
+        />
+      ) : null}
     </>
   )
 }
