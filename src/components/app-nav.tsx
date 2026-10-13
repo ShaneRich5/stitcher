@@ -7,7 +7,16 @@ const links = [
   { to: '/collage', label: 'Collage' },
 ] as const
 
-export function AppNav({ actions }: { actions?: ReactNode }) {
+type Props = {
+  /** Undo, export and the like, at the end of the bar. */
+  actions?: ReactNode
+  /** Next to the tool links, e.g. the save status. */
+  status?: ReactNode
+  /** In the middle of the bar, e.g. the Quick / Studio switch. */
+  center?: ReactNode
+}
+
+export function AppNav({ actions, status, center }: Props) {
   return (
     <nav className="app-nav" aria-label="Tools">
       <Link to="/" className="app-nav-brand">
@@ -31,6 +40,8 @@ export function AppNav({ actions }: { actions?: ReactNode }) {
           </li>
         ))}
       </ul>
+      {status ? <div className="app-nav-status">{status}</div> : null}
+      {center ? <div className="app-nav-center">{center}</div> : null}
       {actions ? <div className="app-nav-actions">{actions}</div> : null}
     </nav>
   )

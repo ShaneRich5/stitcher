@@ -45,7 +45,7 @@ export function renderSlide(
   ctx.scale(canvas.width / doc.slideW, canvas.height / doc.slideH)
   ctx.translate(-index * doc.slideW, 0)
   const row = { width: totalWidth(doc), height: doc.slideH }
-  for (const layer of doc.layers) drawLayer(ctx, layer, canvas.width / doc.slideW, row)
+  for (const layer of doc.layers) if (!layer.hidden) drawLayer(ctx, layer, canvas.width / doc.slideW, row)
   drawLightLeaks(ctx, doc)
   return canvas
 }

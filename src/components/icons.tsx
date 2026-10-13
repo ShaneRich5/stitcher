@@ -18,6 +18,16 @@ export type IconName =
   | 'chevron-right'
   | 'chevron-down'
   | 'restart'
+  | 'bolt'
+  | 'sliders'
+  | 'pointer'
+  | 'hand'
+  | 'text'
+  | 'shapes'
+  | 'templates'
+  | 'eye-off'
+  | 'grip'
+  | 'check'
   | 'forward'
   | 'backward'
   | 'lock'
@@ -119,6 +129,53 @@ const PATHS: Record<IconName, ReactNode> = {
   'chevron-left': <path d="m15 18-6-6 6-6" />,
   'chevron-right': <path d="m9 18 6-6-6-6" />,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
+  bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />,
+  sliders: (
+    <>
+      <path d="M4 6h9M19 6h1M4 12h3M11 12h9M4 18h11M19 18h1" />
+      <circle cx="16" cy="6" r="2.2" />
+      <circle cx="9" cy="12" r="2.2" />
+      <circle cx="17" cy="18" r="2.2" />
+    </>
+  ),
+  pointer: <path d="M5 3l14 8-6 2-3 6-5-16Z" />,
+  hand: (
+    <path d="M8 11V5a1.5 1.5 0 0 1 3 0v5M11 10V4a1.5 1.5 0 0 1 3 0v6M14 10V5.5a1.5 1.5 0 0 1 3 0V13a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L3 15.5a1.5 1.5 0 0 1 2.3-1.9L8 16V9.5a1.5 1.5 0 0 1 3 0" />
+  ),
+  text: <path d="M5 6V4h14v2M12 4v16M9 20h6" />,
+  shapes: (
+    <>
+      <circle cx="8" cy="8" r="4.5" />
+      <path d="M14 13h7v7h-7z" />
+      <path d="M6 14l4 7H2z" />
+    </>
+  ),
+  templates: (
+    <>
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="5" rx="1.5" />
+      <rect x="13" y="10" width="8" height="11" rx="1.5" />
+      <rect x="3" y="13" width="8" height="8" rx="1.5" />
+    </>
+  ),
+  'eye-off': (
+    <>
+      <path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.7 3.6M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+      <path d="m3 3 18 18" />
+    </>
+  ),
+  grip: (
+    <>
+      <circle cx="9" cy="6" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="6" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="18" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="18" r="1.2" fill="currentColor" stroke="none" />
+    </>
+  ),
+  check: <path d="m5 12 5 5L20 7" />,
   restart: (
     <>
       <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />

@@ -4,19 +4,19 @@ import { DATE_STAMP_FORMATS } from '../lib/date-stamp'
 import { FILM_LOOKS, isNeutralLook, NEUTRAL_LOOK, withFilm } from '../lib/film-looks'
 import { getImage } from '../lib/image-registry'
 import { lookSwatch, OUTLINE_MAX } from '../lib/layer-effects'
+import { CUTOUT_OPTIONS, FIT_OPTIONS, type CutoutMode } from '../lib/layer-options'
 import { IMAGE_ACCEPT, listFiles } from '../lib/load-image'
 import type { DateStampFormat, FilmLookId, FitMode, Layer, LayerLook, LayerOutline, LayerShadow } from '../types'
 import { Icon, type IconName } from './icons'
 
-/** What "Cut out" does with the subject: replace the photo, add it above, or add it over a blur. */
-export type CutoutMode = 'replace' | 'layer' | 'portrait'
+export type { CutoutMode }
 
 export type EffectsPatch = Partial<Pick<Layer, 'outline' | 'shadow' | 'blur' | 'look' | 'dateStamp'>>
 
 /** The desktop bar: `compact` is one row of quick actions, `detailed` adds the sliders and full notes. */
 export type ControlsDetail = 'compact' | 'detailed'
 
-type Props = {
+export type ImageControlsProps = {
   layer: Layer
   zoom: number
   /** `toolbar` is the bar under the canvas on desktop; `sheet` sits in the phone dock. */
@@ -53,19 +53,10 @@ type Props = {
   onForward: () => void
   onBackward: () => void
   onDelete: () => void
+  /** Studio can hide or lock a layer; Quick only says so, with a way to undo it. */
+  onToggleHidden?: () => void
+  onToggleLocked?: () => void
 }
-
-const FIT_OPTIONS: { value: FitMode; label: string; hint: string }[] = [
-  { value: 'fill', label: 'Fill slides', hint: 'Cover every slide; rescales when you change slides or format' },
-  { value: 'fit', label: 'Fit', hint: 'Show the whole photo across the slides' },
-  { value: 'free', label: 'Free', hint: 'Fit inside one slide, then place it anywhere' },
-]
-
-const CUTOUT_OPTIONS: { mode: CutoutMode; icon: IconName; label: string; hint: string }[] = [
-  { mode: 'replace', icon: 'cutout', label: 'Remove background', hint: 'Swap the photo for its subject' },
-  { mode: 'layer', icon: 'layers', label: 'Cut out to new layer', hint: 'Keep the photo, with the subject on top' },
-  { mode: 'portrait', icon: 'aperture', label: 'Portrait', hint: 'Blur the photo behind a sharp subject' },
-]
 
 const DEFAULT_OUTLINE: LayerOutline = { color: '#ffffff', width: 12 }
 const DEFAULT_SHADOW: LayerShadow = { color: '#000000', blur: 24, offsetX: 0, offsetY: 12, opacity: 0.35 }
@@ -150,7 +141,9 @@ export function ImageControls({
   onForward,
   onBackward,
   onDelete,
-}: Props) {
+  onToggleHidden,
+  onToggleLocked,
+}: ImageControlsProps) {
   const replaceRef = useRef<HTMLInputElement>(null)
   const cutoutMenuRef = useRef<HTMLDetailsElement>(null)
   const isSheet = variant === 'sheet'
@@ -191,215 +184,8 @@ export function ImageControls({
     menuItem('choose', 'target', 'Choose subject…', 'Tap the one to cut out, when there are several', onChooseSubject),
   ]
 
-  const { outline, shadow, dateStamp } = layer
-  const blur = layer.blur ?? 0
-  const effects = (
-    <>
-      <div className="effect-group">
-        <label className="check-line">
-          <input
-            type="checkbox"
-            checked={!!outline}
-            onChange={(e) => onEffects({ outline: e.target.checked ? DEFAULT_OUTLINE : undefined })}
-          />
-          Outline
-        </label>
-        {outline ? (
-          <>
-            <label className="range-field">
-              <span>Width</span>
-              <input
-                type="range"
-                min={1}
-                max={OUTLINE_MAX}
-                step={1}
-                value={Math.min(OUTLINE_MAX, outline.width)}
-                onChange={(e) => onEffects({ outline: { ...outline, width: Number(e.target.value) } }, 'outline-width')}
-              />
-              <output>{Math.round(outline.width)} px</output>
-            </label>
-            <label className="range-field color-field">
-              <span>Color</span>
-              <input
-                type="color"
-                value={outline.color}
-                onChange={(e) => onEffects({ outline: { ...outline, color: e.target.value } }, 'outline-color')}
-              />
-            </label>
-          </>
-        ) : null}
-      </div>
-
-      <div className="effect-group">
-        <label className="check-line">
-          <input
-            type="checkbox"
-            checked={!!shadow}
-            onChange={(e) => onEffects({ shadow: e.target.checked ? DEFAULT_SHADOW : undefined })}
-          />
-          Shadow
-        </label>
-        {shadow ? (
-          <>
-            <label className="range-field">
-              <span>Softness</span>
-              <input
-                type="range"
-                min={0}
-                max={80}
-                step={1}
-                value={shadow.blur}
-                onChange={(e) => onEffects({ shadow: { ...shadow, blur: Number(e.target.value) } }, 'shadow-blur')}
-              />
-              <output>{Math.round(shadow.blur)} px</output>
-            </label>
-            <label className="range-field">
-              <span>Offset</span>
-              <input
-                type="range"
-                min={0}
-                max={60}
-                step={1}
-                value={shadow.offsetY}
-                onChange={(e) => onEffects({ shadow: { ...shadow, offsetY: Number(e.target.value) } }, 'shadow-offset')}
-              />
-              <output>{Math.round(shadow.offsetY)} px</output>
-            </label>
-            <label className="range-field">
-              <span>Strength</span>
-              <input
-                type="range"
-                min={0.05}
-                max={1}
-                step={0.05}
-                value={shadow.opacity}
-                onChange={(e) =>
-                  onEffects({ shadow: { ...shadow, opacity: Number(e.target.value) } }, 'shadow-opacity')
-                }
-              />
-              <output>{Math.round(shadow.opacity * 100)}%</output>
-            </label>
-          </>
-        ) : null}
-      </div>
-
-      <label className="range-field">
-        <span>Blur</span>
-        <input
-          type="range"
-          min={0}
-          max={MAX_BLUR}
-          step={1}
-          value={Math.min(MAX_BLUR, blur)}
-          onChange={(e) => onEffects({ blur: Number(e.target.value) || undefined }, 'blur')}
-        />
-        <output>{Math.round(blur)} px</output>
-      </label>
-
-      <div className="effect-group">
-        <label className="check-line" title="The date in the corner, from when the photo was taken">
-          <input
-            type="checkbox"
-            checked={!!dateStamp}
-            onChange={(e) => (e.target.checked ? onDateStampOn() : onEffects({ dateStamp: undefined }))}
-          />
-          Date stamp
-        </label>
-        {dateStamp ? (
-          <>
-            <label className="range-field">
-              <span>Date</span>
-              <input
-                type="date"
-                value={dateStamp.date}
-                required
-                onChange={(e) => {
-                  if (e.target.value) onEffects({ dateStamp: { ...dateStamp, date: e.target.value } }, 'stamp-date')
-                }}
-              />
-            </label>
-            <label className="range-field">
-              <span>Style</span>
-              <select
-                value={dateStamp.format}
-                onChange={(e) =>
-                  onEffects({ dateStamp: { ...dateStamp, format: e.target.value as DateStampFormat } })
-                }
-              >
-                {DATE_STAMP_FORMATS.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
-        ) : null}
-      </div>
-    </>
-  )
-
-  const look = layer.look ?? NEUTRAL_LOOK
-  const setLook = (next: LayerLook, coalesce?: string) =>
-    onEffects({ look: isNeutralLook(next) ? undefined : next }, coalesce)
-  const lookSlider = ({ key, label, min }: { key: LookSlider; label: string; min: number }) => {
-    const value = Math.round(look[key] * 100)
-    return (
-      <label key={key} className="range-field">
-        <span>{label}</span>
-        <input
-          type="range"
-          min={min}
-          max={1}
-          step={0.01}
-          value={look[key]}
-          onChange={(e) => setLook({ ...look, [key]: Number(e.target.value) }, `look-${key}`)}
-        />
-        <output>{min < 0 ? `${value > 0 ? '+' : ''}${value}` : `${value}%`}</output>
-      </label>
-    )
-  }
-  const looks = (
-    <>
-      <div className="look-swatches" role="radiogroup" aria-label="Film look">
-        {LOOK_CHOICES.map((c) => (
-          <button
-            key={c.id ?? 'none'}
-            type="button"
-            role="radio"
-            aria-checked={look.film === c.id}
-            className={`look-swatch ${look.film === c.id ? 'on' : ''}`}
-            onClick={() => {
-              if (look.film !== c.id) setLook(withFilm(look, c.id))
-            }}
-          >
-            <img src={lookSwatch(layer, c.id)} alt="" width={60} height={60} />
-            <span>{c.name}</span>
-          </button>
-        ))}
-      </div>
-      {look.film ? lookSlider({ key: 'strength', label: 'Strength', min: 0 }) : null}
-      {FILM_SLIDERS.map(lookSlider)}
-      <span className="look-heading">Adjust</span>
-      {ADJUST_SLIDERS.map(lookSlider)}
-      <div className="look-actions">
-        {onLookToAll ? (
-          <button
-            type="button"
-            className="look-btn"
-            title="Give every photo in the carousel this look"
-            disabled={!layer.look}
-            onClick={onLookToAll}
-          >
-            Apply to all photos
-          </button>
-        ) : null}
-        <button type="button" className="look-btn" disabled={!layer.look} onClick={() => onEffects({ look: undefined })}>
-          Reset
-        </button>
-      </div>
-    </>
-  )
+  const effects = <EffectsFields layer={layer} onEffects={onEffects} onDateStampOn={onDateStampOn} />
+  const looks = <LookFields layer={layer} onEffects={onEffects} onLookToAll={onLookToAll} />
 
   return (
     <div
@@ -418,6 +204,26 @@ export function ImageControls({
               {compact ? 'Low res ' : 'Low resolution · '}
               {layerUpscale(layer).toFixed(1)}×{isSheet ? <small>{lowResDetail}</small> : null}
             </span>
+          </span>
+        ) : null}
+
+        {layer.hidden && onToggleHidden ? (
+          <span className="low-res-note" title="Hidden in Studio, so it isn't drawn or exported">
+            <Icon name="eye-off" size={14} />
+            <span>Hidden</span>
+            <button type="button" className="note-btn" onClick={onToggleHidden}>
+              Show
+            </button>
+          </span>
+        ) : null}
+
+        {layer.locked && onToggleLocked ? (
+          <span className="low-res-note" title="Locked in Studio, so it can't be moved on the canvas">
+            <Icon name="lock" size={14} />
+            <span>Locked</span>
+            <button type="button" className="note-btn" onClick={onToggleLocked}>
+              Unlock
+            </button>
           </span>
         ) : null}
 
@@ -566,6 +372,226 @@ export function ImageControls({
         </>
       ) : null}
     </div>
+  )
+}
+
+/** Outline, shadow, blur and the date stamp. The toolbar's popover, the phone sheet and Studio share them. */
+export function EffectsFields({
+  layer,
+  onEffects,
+  onDateStampOn,
+}: Pick<ImageControlsProps, 'layer' | 'onEffects' | 'onDateStampOn'>) {
+  const { outline, shadow, dateStamp } = layer
+  const blur = layer.blur ?? 0
+  return (
+    <>
+      <div className="effect-group">
+        <label className="check-line">
+          <input
+            type="checkbox"
+            checked={!!outline}
+            onChange={(e) => onEffects({ outline: e.target.checked ? DEFAULT_OUTLINE : undefined })}
+          />
+          Outline
+        </label>
+        {outline ? (
+          <>
+            <label className="range-field">
+              <span>Width</span>
+              <input
+                type="range"
+                min={1}
+                max={OUTLINE_MAX}
+                step={1}
+                value={Math.min(OUTLINE_MAX, outline.width)}
+                onChange={(e) => onEffects({ outline: { ...outline, width: Number(e.target.value) } }, 'outline-width')}
+              />
+              <output>{Math.round(outline.width)} px</output>
+            </label>
+            <label className="range-field color-field">
+              <span>Color</span>
+              <input
+                type="color"
+                value={outline.color}
+                onChange={(e) => onEffects({ outline: { ...outline, color: e.target.value } }, 'outline-color')}
+              />
+            </label>
+          </>
+        ) : null}
+      </div>
+
+      <div className="effect-group">
+        <label className="check-line">
+          <input
+            type="checkbox"
+            checked={!!shadow}
+            onChange={(e) => onEffects({ shadow: e.target.checked ? DEFAULT_SHADOW : undefined })}
+          />
+          Shadow
+        </label>
+        {shadow ? (
+          <>
+            <label className="range-field">
+              <span>Softness</span>
+              <input
+                type="range"
+                min={0}
+                max={80}
+                step={1}
+                value={shadow.blur}
+                onChange={(e) => onEffects({ shadow: { ...shadow, blur: Number(e.target.value) } }, 'shadow-blur')}
+              />
+              <output>{Math.round(shadow.blur)} px</output>
+            </label>
+            <label className="range-field">
+              <span>Offset</span>
+              <input
+                type="range"
+                min={0}
+                max={60}
+                step={1}
+                value={shadow.offsetY}
+                onChange={(e) => onEffects({ shadow: { ...shadow, offsetY: Number(e.target.value) } }, 'shadow-offset')}
+              />
+              <output>{Math.round(shadow.offsetY)} px</output>
+            </label>
+            <label className="range-field">
+              <span>Strength</span>
+              <input
+                type="range"
+                min={0.05}
+                max={1}
+                step={0.05}
+                value={shadow.opacity}
+                onChange={(e) =>
+                  onEffects({ shadow: { ...shadow, opacity: Number(e.target.value) } }, 'shadow-opacity')
+                }
+              />
+              <output>{Math.round(shadow.opacity * 100)}%</output>
+            </label>
+          </>
+        ) : null}
+      </div>
+
+      <label className="range-field">
+        <span>Blur</span>
+        <input
+          type="range"
+          min={0}
+          max={MAX_BLUR}
+          step={1}
+          value={Math.min(MAX_BLUR, blur)}
+          onChange={(e) => onEffects({ blur: Number(e.target.value) || undefined }, 'blur')}
+        />
+        <output>{Math.round(blur)} px</output>
+      </label>
+
+      <div className="effect-group">
+        <label className="check-line" title="The date in the corner, from when the photo was taken">
+          <input
+            type="checkbox"
+            checked={!!dateStamp}
+            onChange={(e) => (e.target.checked ? onDateStampOn() : onEffects({ dateStamp: undefined }))}
+          />
+          Date stamp
+        </label>
+        {dateStamp ? (
+          <>
+            <label className="range-field">
+              <span>Date</span>
+              <input
+                type="date"
+                value={dateStamp.date}
+                required
+                onChange={(e) => {
+                  if (e.target.value) onEffects({ dateStamp: { ...dateStamp, date: e.target.value } }, 'stamp-date')
+                }}
+              />
+            </label>
+            <label className="range-field">
+              <span>Style</span>
+              <select
+                value={dateStamp.format}
+                onChange={(e) =>
+                  onEffects({ dateStamp: { ...dateStamp, format: e.target.value as DateStampFormat } })
+                }
+              >
+                {DATE_STAMP_FORMATS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        ) : null}
+      </div>
+    </>
+  )
+}
+
+/** Film looks and the adjustment sliders. */
+export function LookFields({ layer, onEffects, onLookToAll }: Pick<ImageControlsProps, 'layer' | 'onEffects' | 'onLookToAll'>) {
+  const look = layer.look ?? NEUTRAL_LOOK
+  const setLook = (next: LayerLook, coalesce?: string) =>
+    onEffects({ look: isNeutralLook(next) ? undefined : next }, coalesce)
+  const lookSlider = ({ key, label, min }: { key: LookSlider; label: string; min: number }) => {
+    const value = Math.round(look[key] * 100)
+    return (
+      <label key={key} className="range-field">
+        <span>{label}</span>
+        <input
+          type="range"
+          min={min}
+          max={1}
+          step={0.01}
+          value={look[key]}
+          onChange={(e) => setLook({ ...look, [key]: Number(e.target.value) }, `look-${key}`)}
+        />
+        <output>{min < 0 ? `${value > 0 ? '+' : ''}${value}` : `${value}%`}</output>
+      </label>
+    )
+  }
+  return (
+    <>
+      <div className="look-swatches" role="radiogroup" aria-label="Film look">
+        {LOOK_CHOICES.map((c) => (
+          <button
+            key={c.id ?? 'none'}
+            type="button"
+            role="radio"
+            aria-checked={look.film === c.id}
+            className={`look-swatch ${look.film === c.id ? 'on' : ''}`}
+            onClick={() => {
+              if (look.film !== c.id) setLook(withFilm(look, c.id))
+            }}
+          >
+            <img src={lookSwatch(layer, c.id)} alt="" width={60} height={60} />
+            <span>{c.name}</span>
+          </button>
+        ))}
+      </div>
+      {look.film ? lookSlider({ key: 'strength', label: 'Strength', min: 0 }) : null}
+      {FILM_SLIDERS.map(lookSlider)}
+      <span className="look-heading">Adjust</span>
+      {ADJUST_SLIDERS.map(lookSlider)}
+      <div className="look-actions">
+        {onLookToAll ? (
+          <button
+            type="button"
+            className="look-btn"
+            title="Give every photo in the carousel this look"
+            disabled={!layer.look}
+            onClick={onLookToAll}
+          >
+            Apply to all photos
+          </button>
+        ) : null}
+        <button type="button" className="look-btn" disabled={!layer.look} onClick={() => onEffects({ look: undefined })}>
+          Reset
+        </button>
+      </div>
+    </>
   )
 }
 

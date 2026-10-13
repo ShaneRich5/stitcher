@@ -5,6 +5,7 @@ import {
   layerZoom,
   makeLayer,
   moveLayer,
+  moveLayerTo,
   normalizeDegrees,
   profileGridCrop,
   relayout,
@@ -206,6 +207,30 @@ describe('moveLayer', () => {
     expect(moveLayer(stacked, c.id, 1)).toBe(stacked)
     expect(moveLayer(stacked, a.id, -1)).toBe(stacked)
     expect(moveLayer(stacked, 'nope', 1)).toBe(stacked)
+  })
+})
+
+describe('moveLayerTo', () => {
+  const a = makeLayer(doc, square, 'free', 0)
+  const b = makeLayer(doc, square, 'free', 1)
+  const c = makeLayer(doc, square, 'free', 2)
+  const stacked = withLayers(doc, a, b, c)
+  const ids = (d: CarouselDoc) => d.layers.map((l) => l.id)
+
+  it('moves a layer to any place in the stack', () => {
+    expect(ids(moveLayerTo(stacked, a.id, 2))).toEqual([b.id, c.id, a.id])
+    expect(ids(moveLayerTo(stacked, c.id, 0))).toEqual([c.id, a.id, b.id])
+    expect(ids(moveLayerTo(stacked, a.id, 1))).toEqual([b.id, a.id, c.id])
+  })
+
+  it('clamps the place to the stack', () => {
+    expect(ids(moveLayerTo(stacked, a.id, 9))).toEqual([b.id, c.id, a.id])
+    expect(ids(moveLayerTo(stacked, c.id, -3))).toEqual([c.id, a.id, b.id])
+  })
+
+  it('leaves the doc alone when nothing moves, or for an unknown id', () => {
+    expect(moveLayerTo(stacked, b.id, 1)).toBe(stacked)
+    expect(moveLayerTo(stacked, 'nope', 0)).toBe(stacked)
   })
 })
 

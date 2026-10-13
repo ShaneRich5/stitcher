@@ -55,8 +55,6 @@ export function CarouselControls({
   const counts = QUICK_COUNTS.includes(doc.count)
     ? QUICK_COUNTS
     : [...QUICK_COUNTS, doc.count].sort((a, b) => a - b)
-  const leaks = doc.lightLeaks ?? DEFAULT_LIGHT_LEAKS
-
   return (
     <div className="carousel-controls">
       <div className="control-group" role="group" aria-label="Number of slides">
@@ -163,153 +161,18 @@ export function CarouselControls({
             Style
           </summary>
           <div className="popover-panel">
-            <fieldset className="popover-section">
-              <legend>Background</legend>
-              <div className="swatches">
-                {BACKGROUND_SWATCHES.map((s) => (
-                  <button
-                    key={s.label}
-                    type="button"
-                    aria-label={s.label}
-                    title={s.label}
-                    aria-pressed={doc.background === s.value}
-                    className={`swatch ${s.value ? '' : 'is-transparent'} ${doc.background === s.value ? 'on' : ''}`}
-                    style={{ background: s.value ?? undefined }}
-                    onClick={() => onBackground(s.value)}
-                  />
-                ))}
-                <label className="swatch swatch-custom" title="Custom color">
-                  <span className="visually-hidden">Custom color</span>
-                  <input
-                    type="color"
-                    value={doc.background ?? '#ffffff'}
-                    onChange={(e) => onBackground(e.target.value)}
-                  />
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset className="popover-section">
-              <legend>Light leaks</legend>
-              <p className="popover-hint">Light bleeding across the seams, so it carries on as you swipe.</p>
-              <label className="range-field">
-                <span>Amount</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={leaks.amount}
-                  onChange={(e) => onLightLeaks({ amount: Number(e.target.value) }, 'leak-amount')}
-                />
-                <output>{Math.round(leaks.amount * 100)}%</output>
-              </label>
-              {leaks.amount > 0 ? (
-                <div className="leak-row">
-                  <div className="swatches" role="radiogroup" aria-label="Leak color">
-                    {LEAK_COLORS.map((c) => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        role="radio"
-                        aria-label={c.label}
-                        title={c.label}
-                        aria-checked={leaks.color === c.value}
-                        className={`swatch ${leaks.color === c.value ? 'on' : ''}`}
-                        style={{ background: c.value }}
-                        onClick={() => onLightLeaks({ color: c.value })}
-                      />
-                    ))}
-                    <label className="swatch swatch-custom" title="Custom color">
-                      <span className="visually-hidden">Custom leak color</span>
-                      <input
-                        type="color"
-                        value={leaks.color}
-                        onChange={(e) => onLightLeaks({ color: e.target.value }, 'leak-color')}
-                      />
-                    </label>
-                  </div>
-                  <button type="button" className="btn btn-outline" onClick={onShuffleLeaks}>
-                    <Icon name="shuffle" size={16} />
-                    Shuffle
-                  </button>
-                </div>
-              ) : null}
-            </fieldset>
-
-            <fieldset className="popover-section">
-              <legend>Cut each slide into a grid</legend>
-              <p className="popover-hint">For profile-grid posts. 1 × 1 exports whole slides.</p>
-              <div className="grid-picker">
-                <label>
-                  Columns
-                  <select value={doc.gridCols} onChange={(e) => onGrid(Number(e.target.value), doc.gridRows)}>
-                    {GRID_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <span aria-hidden="true">×</span>
-                <label>
-                  Rows
-                  <select value={doc.gridRows} onChange={(e) => onGrid(doc.gridCols, Number(e.target.value))}>
-                    {GRID_OPTIONS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset className="popover-section">
-              <legend>Export as</legend>
-              <div className="segmented">
-                <button
-                  type="button"
-                  className={`seg-btn ${exportFormat === 'png' ? 'on' : ''}`}
-                  aria-pressed={exportFormat === 'png'}
-                  onClick={() => onExportFormat('png')}
-                >
-                  PNG · best quality
-                </button>
-                <button
-                  type="button"
-                  className={`seg-btn ${exportFormat === 'jpeg' ? 'on' : ''}`}
-                  aria-pressed={exportFormat === 'jpeg'}
-                  onClick={() => onExportFormat('jpeg')}
-                >
-                  JPEG · smaller
-                </button>
-              </div>
-              {exportFormat === 'jpeg' ? (
-                <label className="range-field">
-                  <span>Quality</span>
-                  <input
-                    type="range"
-                    min={60}
-                    max={100}
-                    step={1}
-                    value={Math.round(jpegQuality * 100)}
-                    onChange={(e) => onJpegQuality(Number(e.target.value) / 100)}
-                  />
-                  <output>{Math.round(jpegQuality * 100)}</output>
-                </label>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn-outline"
-                disabled={!onMakeAnimation}
-                title="Open each slide as a frame in the GIF tool, for a Story or Reel"
-                onClick={onMakeAnimation}
-              >
-                <Icon name="film" size={16} />
-                Make a GIF or video
-              </button>
-            </fieldset>
+            <StyleFields
+              doc={doc}
+              exportFormat={exportFormat}
+              jpegQuality={jpegQuality}
+              onBackground={onBackground}
+              onGrid={onGrid}
+              onLightLeaks={onLightLeaks}
+              onShuffleLeaks={onShuffleLeaks}
+              onExportFormat={onExportFormat}
+              onJpegQuality={onJpegQuality}
+              onMakeAnimation={onMakeAnimation}
+            />
           </div>
         </details>
 
@@ -321,5 +184,186 @@ export function CarouselControls({
         ) : null}
       </div>
     </div>
+  )
+}
+
+type StyleProps = Pick<
+  Props,
+  | 'doc'
+  | 'exportFormat'
+  | 'jpegQuality'
+  | 'onBackground'
+  | 'onGrid'
+  | 'onLightLeaks'
+  | 'onShuffleLeaks'
+  | 'onExportFormat'
+  | 'onJpegQuality'
+  | 'onMakeAnimation'
+>
+
+/** Background, light leaks, the grid cut and export: Quick's Style popover, and Studio's inspector. */
+export function StyleFields({
+  doc,
+  exportFormat,
+  jpegQuality,
+  onBackground,
+  onGrid,
+  onLightLeaks,
+  onShuffleLeaks,
+  onExportFormat,
+  onJpegQuality,
+  onMakeAnimation,
+}: StyleProps) {
+  const leaks = doc.lightLeaks ?? DEFAULT_LIGHT_LEAKS
+  return (
+    <>
+    <fieldset className="popover-section">
+      <legend>Background</legend>
+      <div className="swatches">
+        {BACKGROUND_SWATCHES.map((s) => (
+          <button
+            key={s.label}
+            type="button"
+            aria-label={s.label}
+            title={s.label}
+            aria-pressed={doc.background === s.value}
+            className={`swatch ${s.value ? '' : 'is-transparent'} ${doc.background === s.value ? 'on' : ''}`}
+            style={{ background: s.value ?? undefined }}
+            onClick={() => onBackground(s.value)}
+          />
+        ))}
+        <label className="swatch swatch-custom" title="Custom color">
+          <span className="visually-hidden">Custom color</span>
+          <input
+            type="color"
+            value={doc.background ?? '#ffffff'}
+            onChange={(e) => onBackground(e.target.value)}
+          />
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset className="popover-section">
+      <legend>Light leaks</legend>
+      <p className="popover-hint">Light bleeding across the seams, so it carries on as you swipe.</p>
+      <label className="range-field">
+        <span>Amount</span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={leaks.amount}
+          onChange={(e) => onLightLeaks({ amount: Number(e.target.value) }, 'leak-amount')}
+        />
+        <output>{Math.round(leaks.amount * 100)}%</output>
+      </label>
+      {leaks.amount > 0 ? (
+        <div className="leak-row">
+          <div className="swatches" role="radiogroup" aria-label="Leak color">
+            {LEAK_COLORS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                role="radio"
+                aria-label={c.label}
+                title={c.label}
+                aria-checked={leaks.color === c.value}
+                className={`swatch ${leaks.color === c.value ? 'on' : ''}`}
+                style={{ background: c.value }}
+                onClick={() => onLightLeaks({ color: c.value })}
+              />
+            ))}
+            <label className="swatch swatch-custom" title="Custom color">
+              <span className="visually-hidden">Custom leak color</span>
+              <input
+                type="color"
+                value={leaks.color}
+                onChange={(e) => onLightLeaks({ color: e.target.value }, 'leak-color')}
+              />
+            </label>
+          </div>
+          <button type="button" className="btn btn-outline" onClick={onShuffleLeaks}>
+            <Icon name="shuffle" size={16} />
+            Shuffle
+          </button>
+        </div>
+      ) : null}
+    </fieldset>
+
+    <fieldset className="popover-section">
+      <legend>Cut each slide into a grid</legend>
+      <p className="popover-hint">For profile-grid posts. 1 × 1 exports whole slides.</p>
+      <div className="grid-picker">
+        <label>
+          Columns
+          <select value={doc.gridCols} onChange={(e) => onGrid(Number(e.target.value), doc.gridRows)}>
+            {GRID_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span aria-hidden="true">×</span>
+        <label>
+          Rows
+          <select value={doc.gridRows} onChange={(e) => onGrid(doc.gridCols, Number(e.target.value))}>
+            {GRID_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset className="popover-section">
+      <legend>Export as</legend>
+      <div className="segmented">
+        <button
+          type="button"
+          className={`seg-btn ${exportFormat === 'png' ? 'on' : ''}`}
+          aria-pressed={exportFormat === 'png'}
+          onClick={() => onExportFormat('png')}
+        >
+          PNG · best quality
+        </button>
+        <button
+          type="button"
+          className={`seg-btn ${exportFormat === 'jpeg' ? 'on' : ''}`}
+          aria-pressed={exportFormat === 'jpeg'}
+          onClick={() => onExportFormat('jpeg')}
+        >
+          JPEG · smaller
+        </button>
+      </div>
+      {exportFormat === 'jpeg' ? (
+        <label className="range-field">
+          <span>Quality</span>
+          <input
+            type="range"
+            min={60}
+            max={100}
+            step={1}
+            value={Math.round(jpegQuality * 100)}
+            onChange={(e) => onJpegQuality(Number(e.target.value) / 100)}
+          />
+          <output>{Math.round(jpegQuality * 100)}</output>
+        </label>
+      ) : null}
+      <button
+        type="button"
+        className="btn btn-outline"
+        disabled={!onMakeAnimation}
+        title="Open each slide as a frame in the GIF tool, for a Story or Reel"
+        onClick={onMakeAnimation}
+      >
+        <Icon name="film" size={16} />
+        Make a GIF or video
+      </button>
+    </fieldset>
+    </>
   )
 }

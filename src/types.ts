@@ -32,6 +32,10 @@ export type Layer = {
   look?: LayerLook
   /** The date in the photo's corner, the way a point-and-shoot printed it. */
   dateStamp?: LayerDateStamp
+  /** Left out of the canvas and the export, but kept in the doc. */
+  hidden?: boolean
+  /** Can't be grabbed on the canvas, so whatever is under it can be; still picked from the layer list. */
+  locked?: boolean
 }
 
 /** `ymd` is '98 10 12, `mdy` is 10 12 '98 and `dmy` is 12.10.98. */
