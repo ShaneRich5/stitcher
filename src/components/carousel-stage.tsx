@@ -28,7 +28,7 @@ import { facesOnEdges, type FaceMap } from '../lib/face-edges'
 import { getImage } from '../lib/image-registry'
 import { drawLayerContent } from '../lib/layer-effects'
 import { drawLightLeaks } from '../lib/light-leaks'
-import { collectSnapTargets, snapBox, type SnapGuides } from '../lib/snap-guides'
+import { anchorEdges, collectSnapTargets, snapBox, snapResize, type SnapGuides } from '../lib/snap-guides'
 import type { CarouselDoc, Layer } from '../types'
 import { Icon } from './icons'
 
@@ -75,6 +75,9 @@ function usesSpace(target: EventTarget | null): boolean {
  * stage. Null means the automatic fit, which sizes the stage to the row and scrolls it sideways.
  */
 type View = { scale: number; x: number; y: number }
+
+/** The box Konva's Transformer passes to `boundBoxFunc`, in stage pixels. */
+type TransformBox = { x: number; y: number; width: number; height: number; rotation: number }
 
 const ALL_ANCHORS = [
   'top-left',
@@ -531,6 +534,56 @@ export function CarouselStage({
     setGuides(snapped.guides)
   }
 
+  /** The Transformer's box as a resize goes: never tiny, and keeping the shape when it's locked. */
+  const holdShape = (oldBox: TransformBox, newBox: TransformBox): TransformBox => {
+    if (Math.abs(newBox.width) < 12 || Math.abs(newBox.height) < 12) return oldBox
+    if (!lockAspect || Math.abs(oldBox.rotation) > 0.001) return newBox
+
+    // keepRatio only covers corner anchors; hold the ratio on edge anchors too.
+    const absOldW = Math.abs(oldBox.width)
+    const absOldH = Math.abs(oldBox.height)
+    if (absOldW < 1 || absOldH < 1) return newBox
+    const ratio = absOldW / absOldH
+    const dw = Math.abs(Math.abs(newBox.width) - absOldW)
+    const dh = Math.abs(Math.abs(newBox.height) - absOldH)
+
+    if (dw >= dh) {
+      const signH = newBox.height < 0 ? -1 : 1
+      const newAbsH = Math.abs(newBox.width) / ratio
+      const centerY = oldBox.y + oldBox.height / 2
+      return { ...newBox, height: newAbsH * signH, y: centerY - (newAbsH * signH) / 2 }
+    }
+    const signW = newBox.width < 0 ? -1 : 1
+    const newAbsW = Math.abs(newBox.height) * ratio
+    const centerX = oldBox.x + oldBox.width / 2
+    return { ...newBox, width: newAbsW * signW, x: centerX - (newAbsW * signW) / 2 }
+  }
+
+  /** Snap the edges a resize moves to the slide sides and guides, unless the layer opts out. */
+  const snapTransform = (oldBox: TransformBox, newBox: TransformBox): TransformBox => {
+    const anchor = trRef.current?.getActiveAnchor()
+    if (!anchor || anchor === 'rotater' || !selected || selected.snapOff || Math.abs(newBox.rotation) > 0.001) {
+      return newBox
+    }
+    if (newBox.width <= 0 || newBox.height <= 0) return newBox
+    const world = {
+      x: (newBox.x - origin.x) / scale,
+      y: (newBox.y - origin.y) / scale,
+      width: newBox.width / scale,
+      height: newBox.height / scale,
+    }
+    const ratio = lockAspect ? Math.abs(oldBox.width) / Math.max(1e-6, Math.abs(oldBox.height)) : null
+    const snapped = snapResize(world, anchorEdges(anchor), snapTargets.xs, snapTargets.ys, snapThreshold, ratio)
+    setGuides(snapped.guides)
+    return {
+      ...newBox,
+      x: origin.x + snapped.x * scale,
+      y: origin.y + snapped.y * scale,
+      width: snapped.width * scale,
+      height: snapped.height * scale,
+    }
+  }
+
   const finishTransform = (layerId: string, node: Konva.Node) => {
     const sx = node.scaleX()
     const w = Math.max(8, Math.abs(node.width() * sx))
@@ -631,7 +684,7 @@ export function CarouselStage({
                         onSelect(layer.id)
                       }}
                       onDragMove={(e) => {
-                        snapNode(e.target)
+                        if (!layer.snapOff) snapNode(e.target)
                         syncTwin(e.target.getStage(), layer.id, e.target)
                         trackLive(layer, e.target)
                       }}
@@ -646,6 +699,7 @@ export function CarouselStage({
                         trackLive(layer, e.target)
                       }}
                       onTransformEnd={(e) => {
+                        setGuides({ v: [], h: [] })
                         setLive(null)
                         finishTransform(layer.id, e.target)
                       }}
@@ -818,27 +872,8 @@ export function CarouselStage({
                   borderStroke={ACCENT}
                   borderStrokeWidth={2}
                   boundBoxFunc={(oldBox, newBox) => {
-                    if (Math.abs(newBox.width) < 12 || Math.abs(newBox.height) < 12) return oldBox
-                    if (!lockAspect || Math.abs(oldBox.rotation) > 0.001) return newBox
-
-                    // keepRatio only covers corner anchors; hold the ratio on edge anchors too.
-                    const absOldW = Math.abs(oldBox.width)
-                    const absOldH = Math.abs(oldBox.height)
-                    if (absOldW < 1 || absOldH < 1) return newBox
-                    const ratio = absOldW / absOldH
-                    const dw = Math.abs(Math.abs(newBox.width) - absOldW)
-                    const dh = Math.abs(Math.abs(newBox.height) - absOldH)
-
-                    if (dw >= dh) {
-                      const signH = newBox.height < 0 ? -1 : 1
-                      const newAbsH = Math.abs(newBox.width) / ratio
-                      const centerY = oldBox.y + oldBox.height / 2
-                      return { ...newBox, height: newAbsH * signH, y: centerY - (newAbsH * signH) / 2 }
-                    }
-                    const signW = newBox.width < 0 ? -1 : 1
-                    const newAbsW = Math.abs(newBox.height) * ratio
-                    const centerX = oldBox.x + oldBox.width / 2
-                    return { ...newBox, width: newAbsW * signW, x: centerX - (newAbsW * signW) / 2 }
+                    const box = holdShape(oldBox, newBox)
+                    return box === oldBox ? box : snapTransform(oldBox, box)
                   }}
                 />
               </Group>

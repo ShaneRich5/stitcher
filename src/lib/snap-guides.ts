@@ -94,3 +94,63 @@ export function snapBox(
     guides: { v: uniqueSorted(guides.v), h: uniqueSorted(guides.h) },
   }
 }
+
+/** The edges a resize handle moves: a corner moves two, a side handle one. */
+export type ResizeEdges = { left: boolean; right: boolean; top: boolean; bottom: boolean }
+
+/** The edges moved by one of Konva's Transformer anchors, e.g. `top-left` or `middle-right`. */
+export function anchorEdges(anchor: string): ResizeEdges {
+  return {
+    left: anchor.endsWith('left'),
+    right: anchor.endsWith('right'),
+    top: anchor.startsWith('top'),
+    bottom: anchor.startsWith('bottom'),
+  }
+}
+
+/**
+ * Snap the edges a resize is moving to guide lines; the other edges stay put. With `ratio`
+ * (width / height) the shape is kept: the closer snap wins and the other side follows it, from
+ * the opposite edge on a corner handle or around the center on a side handle.
+ */
+export function snapResize(
+  box: { x: number; y: number; width: number; height: number },
+  edges: ResizeEdges,
+  xs: number[],
+  ys: number[],
+  threshold: number,
+  ratio: number | null,
+): { x: number; y: number; width: number; height: number; guides: SnapGuides } {
+  const movingX = edges.left ? box.x : edges.right ? box.x + box.width : null
+  const movingY = edges.top ? box.y : edges.bottom ? box.y + box.height : null
+  let dx = movingX === null ? null : snapDelta(movingX, xs, threshold)
+  let dy = movingY === null ? null : snapDelta(movingY, ys, threshold)
+  if (ratio && dx !== null && dy !== null) {
+    if (Math.abs(dx) <= Math.abs(dy)) dy = null
+    else dx = null
+  }
+
+  let { x, y, width, height } = box
+  if (dx !== null) {
+    if (edges.left) x += dx
+    width += edges.left ? -dx : dx
+  }
+  if (dy !== null) {
+    if (edges.top) y += dy
+    height += edges.top ? -dy : dy
+  }
+  if (ratio && dx !== null) {
+    const h = width / ratio
+    y = edges.top ? y + height - h : edges.bottom ? y : y + (height - h) / 2
+    height = h
+  } else if (ratio && dy !== null) {
+    const w = height * ratio
+    x = edges.left ? x + width - w : edges.right ? x : x + (width - w) / 2
+    width = w
+  }
+
+  const guides: SnapGuides = { v: [], h: [] }
+  if (dx !== null) guides.v.push(edges.left ? x : x + width)
+  if (dy !== null) guides.h.push(edges.top ? y : y + height)
+  return { x, y, width, height, guides: { v: uniqueSorted(guides.v), h: uniqueSorted(guides.h) } }
+}

@@ -103,6 +103,8 @@ export function Inspector(props: Props) {
     onRotate90,
     onFlip,
     onToggleLock,
+    onToggleSnap,
+    onFillSlide,
     onReplace,
     onDuplicate,
     onCutout,
@@ -211,6 +213,27 @@ export function Inspector(props: Props) {
         >
           <Icon name={layer.lockAspect ? 'lock' : 'unlock'} size={16} />
           Aspect
+        </button>
+      </div>
+      <div className="inspector-buttons">
+        <button
+          type="button"
+          className="btn btn-outline"
+          aria-pressed={!layer.snapOff}
+          title="Snap to the slide sides and guides when dragging or resizing"
+          onClick={onToggleSnap}
+        >
+          <Icon name="magnet" size={16} />
+          Snap
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline"
+          title="Cover the current slide edge to edge, cropping what would spill onto the others"
+          onClick={onFillSlide}
+        >
+          <Icon name="fill-slide" size={16} />
+          Fill this slide
         </button>
       </div>
       <div className="inspector-buttons">

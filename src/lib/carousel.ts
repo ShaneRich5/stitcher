@@ -169,6 +169,56 @@ export function worldToImage(layer: Layer, wx: number, wy: number): { x: number;
   return { x: u * w, y: v * h }
 }
 
+/**
+ * The part of a layer's image that covers slide `slide` edge to edge: the slide's shape, as big
+ * as the image allows, centered where the slide's center is on the image now (kept inside it).
+ */
+export function slideCoverCrop(doc: CarouselDoc, layer: Layer, slide: number): Box {
+  const { w, h } = naturalSize(layer)
+  const s = Math.max(doc.slideW / w, doc.slideH / h)
+  const width = Math.min(w, doc.slideW / s)
+  const height = Math.min(h, doc.slideH / s)
+  // The slide's center in the image's pixels, as worldToImage finds it but without giving up outside.
+  const t = (layer.rotation * Math.PI) / 180
+  const { cx, cy } = center(layer)
+  const rx = (slide + 0.5) * doc.slideW - cx
+  const ry = doc.slideH / 2 - cy
+  const dx = (rx * Math.cos(t) + ry * Math.sin(t)) * (layer.flipX ? -1 : 1)
+  const dy = -rx * Math.sin(t) + ry * Math.cos(t)
+  const px = (dx / Math.max(1e-6, layer.width) + 0.5) * w
+  const py = (dy / Math.max(1e-6, layer.height) + 0.5) * h
+  const clamp = (v: number, max: number) => Math.max(0, Math.min(max, v))
+  return { x: clamp(px - width / 2, w - width), y: clamp(py - height / 2, h - height), width, height }
+}
+
+/** True when a crop keeps the whole image, so no new image is needed for it. */
+export function isWholeImage(layer: Layer, crop: Box): boolean {
+  const { w, h } = naturalSize(layer)
+  return crop.width >= w - 0.5 && crop.height >= h - 0.5
+}
+
+/** A layer showing `img` (its `slideCoverCrop`, or the same image) over slide `slide` exactly, unturned. */
+export function coverSlide(doc: CarouselDoc, layer: Layer, slide: number, img: LoadedImage): Layer {
+  return {
+    ...layer,
+    name: img.name,
+    imageId: img.id,
+    naturalWidth: img.naturalWidth,
+    naturalHeight: img.naturalHeight,
+    fit: 'free',
+    rotation: 0,
+    x: slide * doc.slideW,
+    y: 0,
+    width: doc.slideW,
+    height: doc.slideH,
+  }
+}
+
+/** The slide "Fill this slide" covers: the one in view if the layer is on it, else the one under its center. */
+export function slideToCover(doc: CarouselDoc, layer: Layer, activeSlide: number): number {
+  return layerSlides(doc, layer).includes(activeSlide) ? activeSlide : slideIndexAt(doc, layer.x + layer.width / 2)
+}
+
 /** The world-space bounding box of a box in a layer's image pixels. */
 export function imageBoxToWorld(layer: Layer, box: Box): Box {
   const corners = [

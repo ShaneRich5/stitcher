@@ -46,6 +46,8 @@ export type IconName =
   | 'look'
   | 'shuffle'
   | 'reverse'
+  | 'magnet'
+  | 'fill-slide'
 
 const PATHS: Record<IconName, ReactNode> = {
   undo: (
@@ -293,6 +295,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" />
     </>
   ),
+  magnet: (
+    <>
+      <path d="M6 4v8a6 6 0 0 0 12 0V4h-4v8a2 2 0 0 1-4 0V4Z" />
+      <path d="M6 8h4M14 8h4" />
+    </>
+  ),
+  'fill-slide': <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9h6v6H9Z" />,
 }
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {

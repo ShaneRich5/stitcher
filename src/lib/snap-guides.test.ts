@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDoc } from './carousel'
-import { collectSnapTargets, snapBox } from './snap-guides'
+import { anchorEdges, collectSnapTargets, snapBox, snapResize } from './snap-guides'
 
 const doc = { ...createDoc(), count: 2 }
 const { xs, ys } = collectSnapTargets(doc)
@@ -53,5 +53,35 @@ describe('snapBox', () => {
     const r = snapBox({ x: 1084, y: 400, width: 1080, height: 100 }, xs, ys, 8)
     expect(r.x).toBe(1080)
     expect(r.guides.v).toEqual([1080, 1620, 2160])
+  })
+})
+
+describe('snapResize', () => {
+  it('snaps the dragged edge to a slide side and leaves the others', () => {
+    const r = snapResize({ x: 100, y: 100, width: 975, height: 500 }, anchorEdges('middle-right'), xs, ys, 8, null)
+    expect(r).toEqual({ x: 100, y: 100, width: 980, height: 500, guides: { v: [1080], h: [] } })
+  })
+
+  it('moves the origin when the left or top edge snaps', () => {
+    const r = snapResize({ x: 5, y: -6, width: 400, height: 500 }, anchorEdges('top-left'), xs, ys, 8, null)
+    expect(r).toEqual({ x: 0, y: 0, width: 405, height: 494, guides: { v: [0], h: [0] } })
+  })
+
+  it('keeps the shape from the opposite corner, snapping the closer edge', () => {
+    const r = snapResize({ x: 100, y: 100, width: 976, height: 488 }, anchorEdges('bottom-right'), xs, ys, 8, 2)
+    expect(r).toEqual({ x: 100, y: 100, width: 980, height: 490, guides: { v: [1080], h: [] } })
+  })
+
+  it('keeps the shape around the center on a side handle', () => {
+    const r = snapResize({ x: 100, y: 100, width: 400, height: 1246 }, anchorEdges('bottom-center'), xs, ys, 8, 0.5)
+    expect(r.height).toBe(1250)
+    expect(r.width).toBe(625)
+    expect(r.x).toBe(100 - 112.5)
+    expect(r.guides).toEqual({ v: [], h: [1350] })
+  })
+
+  it('leaves the box alone when nothing is close', () => {
+    const box = { x: 100, y: 100, width: 300, height: 300 }
+    expect(snapResize(box, anchorEdges('bottom-right'), xs, ys, 8, null)).toEqual({ ...box, guides: { v: [], h: [] } })
   })
 })

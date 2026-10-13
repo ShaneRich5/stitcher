@@ -45,8 +45,9 @@ src/
                               drawCollageFrame (preview + export)
     use-element-size.ts, use-stored-mode.ts  A measured element's size; Quick / Studio remembered per tool
     image-registry.ts         imageId -> decoded image, object URL and source blob
+    crop-image.ts             Register part of an image as a new one (Fill this slide)
     idb.ts, persist-project.ts  IndexedDB autosave of the carousel
-    snap-guides.ts            Snap targets and snapBox()
+    snap-guides.ts            Snap targets, snapBox() for drags and snapResize() for resize handles
     render-slide.ts           Canvas render of one slide from source pixels
     remove-background.ts      Subject cutouts with RMBG-1.4 via Transformers.js, loaded on first use
     choose-subject.ts         Tap to choose the subject: SlimSAM picks which part of RMBG's mask to keep
