@@ -20,7 +20,7 @@ src/
     stitcher-editor.tsx       Carousel tool: state, handlers, keyboard, drag/drop, paste, export
     carousel-stage.tsx        Konva stage: slides, layers, snapping, transformer, zoom and pan
     carousel-controls.tsx     Whole-carousel controls (slides, format, split, style, export type)
-    image-controls.tsx        Selected-image controls (floating toolbar / phone sheet)
+    image-controls.tsx        Selected-image controls (compact or detailed bar under the canvas / phone sheet), layer picker
     slide-strip.tsx           Thumbnails of the slides as posted
     swipe-preview.tsx         Feed-style swipe preview dialog
     icons.tsx, app-nav.tsx    Shared UI

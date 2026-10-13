@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { isLowRes, layerUpscale } from '../lib/carousel'
 import { DATE_STAMP_FORMATS } from '../lib/date-stamp'
 import { FILM_LOOKS, isNeutralLook, NEUTRAL_LOOK, withFilm } from '../lib/film-looks'
+import { getImage } from '../lib/image-registry'
 import { lookSwatch, OUTLINE_MAX } from '../lib/layer-effects'
 import { IMAGE_ACCEPT, listFiles } from '../lib/load-image'
 import type { DateStampFormat, FilmLookId, FitMode, Layer, LayerLook, LayerOutline, LayerShadow } from '../types'
@@ -12,11 +13,20 @@ export type CutoutMode = 'replace' | 'layer' | 'portrait'
 
 export type EffectsPatch = Partial<Pick<Layer, 'outline' | 'shadow' | 'blur' | 'look' | 'dateStamp'>>
 
+/** The desktop bar: `compact` is one row of quick actions, `detailed` adds the sliders and full notes. */
+export type ControlsDetail = 'compact' | 'detailed'
+
 type Props = {
   layer: Layer
   zoom: number
-  /** `toolbar` floats over the canvas on desktop; `sheet` sits in the phone dock. */
+  /** `toolbar` is the bar under the canvas on desktop; `sheet` sits in the phone dock. */
   variant: 'toolbar' | 'sheet'
+  /** Toolbar only: how much it shows, and switching that. The sheet always shows everything. */
+  detail?: ControlsDetail
+  onDetail?: (detail: ControlsDetail) => void
+  /** Every layer, so one can be picked when they're stacked too closely to click. */
+  layers: Layer[]
+  onSelectLayer: (id: string) => void
   onFit: (fit: FitMode) => void
   onZoom: (zoom: number) => void
   onRotate: (degrees: number) => void
@@ -117,6 +127,10 @@ export function ImageControls({
   layer,
   zoom,
   variant,
+  detail = 'detailed',
+  onDetail,
+  layers,
+  onSelectLayer,
   onFit,
   onZoom,
   onRotate,
@@ -140,6 +154,7 @@ export function ImageControls({
   const replaceRef = useRef<HTMLInputElement>(null)
   const cutoutMenuRef = useRef<HTMLDetailsElement>(null)
   const isSheet = variant === 'sheet'
+  const compact = !isSheet && detail === 'compact'
 
   const lowRes = isLowRes(layer)
   const lowResDetail =
@@ -387,124 +402,155 @@ export function ImageControls({
   )
 
   return (
-    <div className={`image-controls is-${variant}`} role="toolbar" aria-label={`Edit ${layer.name}`}>
-      <span className="image-controls-name" title={layer.name}>
-        {layer.name}
-      </span>
+    <div
+      className={`image-controls is-${variant} ${compact ? 'is-compact' : 'is-detailed'}`}
+      role="toolbar"
+      aria-label={`Edit ${layer.name}`}
+    >
+      {/* Lines: what the layer is and how it sits, the sliders (detailed only), then the tools. */}
+      <div className="controls-line">
+        <LayerPicker layers={layers} selectedId={layer.id} onSelect={onSelectLayer} />
 
-      {lowRes ? (
-        <span className="low-res-note" title={lowResDetail}>
-          <Icon name="alert" size={14} />
-          <span>
-            Low resolution · {layerUpscale(layer).toFixed(1)}×{isSheet ? <small>{lowResDetail}</small> : null}
+        {lowRes ? (
+          <span className="low-res-note" title={lowResDetail}>
+            <Icon name="alert" size={14} />
+            <span>
+              {compact ? 'Low res ' : 'Low resolution · '}
+              {layerUpscale(layer).toFixed(1)}×{isSheet ? <small>{lowResDetail}</small> : null}
+            </span>
           </span>
-        </span>
-      ) : null}
+        ) : null}
 
-      {facesOnEdge ? (
-        <span className="low-res-note" title={faceDetail}>
-          <Icon name="alert" size={14} />
-          <span>
-            {facesOnEdge === 1 ? 'Face on a slide edge' : `${facesOnEdge} faces on slide edges`}
-            {isSheet ? <small>{faceDetail}</small> : null}
+        {facesOnEdge ? (
+          <span className="low-res-note" title={faceDetail}>
+            <Icon name="alert" size={14} />
+            <span>
+              {compact
+                ? facesOnEdge === 1
+                  ? 'Face on edge'
+                  : `${facesOnEdge} faces on edges`
+                : facesOnEdge === 1
+                  ? 'Face on a slide edge'
+                  : `${facesOnEdge} faces on slide edges`}
+              {isSheet ? <small>{faceDetail}</small> : null}
+            </span>
+            <button type="button" className="note-btn" onClick={onNudge}>
+              Nudge
+            </button>
           </span>
-          <button type="button" className="note-btn" onClick={onNudge}>
-            Nudge
-          </button>
-        </span>
-      ) : null}
+        ) : null}
 
-      <div className="segmented" role="group" aria-label="Fit">
-        {FIT_OPTIONS.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            title={o.hint}
-            className={`seg-btn ${layer.fit === o.value ? 'on' : ''}`}
-            aria-pressed={layer.fit === o.value}
-            onClick={() => onFit(o.value)}
-          >
-            {o.label}
-          </button>
-        ))}
+        <div className="segmented" role="group" aria-label="Fit">
+          {FIT_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              title={o.hint}
+              className={`seg-btn ${layer.fit === o.value ? 'on' : ''}`}
+              aria-pressed={layer.fit === o.value}
+              onClick={() => onFit(o.value)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <label className="range-field">
-        <span>Zoom</span>
-        <input
-          type="range"
-          min={0.2}
-          max={4}
-          step={0.01}
-          value={Math.min(4, Math.max(0.2, zoom))}
-          onChange={(e) => onZoom(Number(e.target.value))}
-        />
-        <output>{Math.round(zoom * 100)}%</output>
-      </label>
-
-      <label className="range-field">
-        <span>Rotate</span>
-        <input
-          type="range"
-          min={-180}
-          max={180}
-          step={1}
-          value={Math.round(layer.rotation)}
-          onChange={(e) => onRotate(Number(e.target.value))}
-        />
-        <output>{Math.round(layer.rotation)}°</output>
-      </label>
-
-      <div className="tool-row">
-        <ToolButton icon="rotate" label="Rotate 90°" onClick={onRotate90} />
-        <ToolButton icon="flip" label="Flip" onClick={onFlip} pressed={layer.flipX} />
-        <ToolButton
-          icon={layer.lockAspect ? 'lock' : 'unlock'}
-          label={layer.lockAspect ? 'Aspect locked' : 'Aspect unlocked'}
-          onClick={onToggleLock}
-          pressed={layer.lockAspect}
-        />
-        <ToolButton icon="forward" label="Bring forward" onClick={onForward} />
-        <ToolButton icon="backward" label="Send backward" onClick={onBackward} />
-        <ToolButton icon="copy" label="Duplicate" onClick={onDuplicate} />
-        {isSheet ? (
-          cutoutActions
-        ) : (
+      <div className="controls-line">
+        {compact ? null : (
           <>
-            <details ref={cutoutMenuRef} className="popover tool-popover">
-              <summary className="tool-btn" title={cutoutLabel} aria-label={cutoutLabel}>
-                <Icon name="cutout" />
-              </summary>
-              <div className="popover-panel tool-menu">{cutoutActions}</div>
-            </details>
-            <details className="popover tool-popover">
-              <summary className="tool-btn" title="Look" aria-label="Look">
-                <Icon name="look" />
-              </summary>
-              <div className="popover-panel effects-panel look-panel">{looks}</div>
-            </details>
-            <details className="popover tool-popover">
-              <summary className="tool-btn" title="Effects" aria-label="Effects">
-                <Icon name="sparkle" />
-              </summary>
-              <div className="popover-panel effects-panel">{effects}</div>
-            </details>
+            <label className="range-field">
+              <span>Zoom</span>
+              <input
+                type="range"
+                min={0.2}
+                max={4}
+                step={0.01}
+                value={Math.min(4, Math.max(0.2, zoom))}
+                onChange={(e) => onZoom(Number(e.target.value))}
+              />
+              <output>{Math.round(zoom * 100)}%</output>
+            </label>
+
+            <label className="range-field">
+              <span>Rotate</span>
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={Math.round(layer.rotation)}
+                onChange={(e) => onRotate(Number(e.target.value))}
+              />
+              <output>{Math.round(layer.rotation)}°</output>
+            </label>
           </>
         )}
-        <input
-          ref={replaceRef}
-          type="file"
-          accept={IMAGE_ACCEPT}
-          className="visually-hidden"
-          tabIndex={-1}
-          onChange={(e) => {
-            const [file] = listFiles(e.target.files)
-            if (file) onReplace(file)
-            e.target.value = ''
-          }}
-        />
-        <ToolButton icon="replace" label="Replace" onClick={() => replaceRef.current?.click()} />
-        <ToolButton icon="trash" label="Delete" onClick={onDelete} danger />
+      </div>
+
+      <div className="controls-line">
+        <div className="tool-row">
+          <ToolButton icon="rotate" label="Rotate 90°" onClick={onRotate90} />
+          <ToolButton icon="flip" label="Flip" onClick={onFlip} pressed={layer.flipX} />
+          <ToolButton
+            icon={layer.lockAspect ? 'lock' : 'unlock'}
+            label={layer.lockAspect ? 'Aspect locked' : 'Aspect unlocked'}
+            onClick={onToggleLock}
+            pressed={layer.lockAspect}
+          />
+          <ToolButton icon="forward" label="Bring forward" onClick={onForward} />
+          <ToolButton icon="backward" label="Send backward" onClick={onBackward} />
+          <ToolButton icon="copy" label="Duplicate" onClick={onDuplicate} />
+          {isSheet ? (
+            cutoutActions
+          ) : (
+            <>
+              <details ref={cutoutMenuRef} className="popover tool-popover">
+                <summary className="tool-btn" title={cutoutLabel} aria-label={cutoutLabel}>
+                  <Icon name="cutout" />
+                </summary>
+                <div className="popover-panel tool-menu">{cutoutActions}</div>
+              </details>
+              <details className="popover tool-popover">
+                <summary className="tool-btn" title="Look" aria-label="Look">
+                  <Icon name="look" />
+                </summary>
+                <div className="popover-panel effects-panel look-panel">{looks}</div>
+              </details>
+              <details className="popover tool-popover">
+                <summary className="tool-btn" title="Effects" aria-label="Effects">
+                  <Icon name="sparkle" />
+                </summary>
+                <div className="popover-panel effects-panel">{effects}</div>
+              </details>
+            </>
+          )}
+          <input
+            ref={replaceRef}
+            type="file"
+            accept={IMAGE_ACCEPT}
+            className="visually-hidden"
+            tabIndex={-1}
+            onChange={(e) => {
+              const [file] = listFiles(e.target.files)
+              if (file) onReplace(file)
+              e.target.value = ''
+            }}
+          />
+          <ToolButton icon="replace" label="Replace" onClick={() => replaceRef.current?.click()} />
+          <ToolButton icon="trash" label="Delete" onClick={onDelete} danger />
+          {onDetail ? (
+            <button
+              type="button"
+              className="detail-btn"
+              aria-pressed={!compact}
+              title={compact ? 'Show zoom, rotate and the full notes' : 'Back to one row'}
+              onClick={() => onDetail(compact ? 'detailed' : 'compact')}
+            >
+              {compact ? 'More' : 'Less'}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {isSheet ? (
@@ -520,6 +566,52 @@ export function ImageControls({
         </>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The selected layer's name, which opens a list of every layer (top of the stack first) to pick
+ * from: the way to reach a photo that others cover on the canvas.
+ */
+export function LayerPicker({
+  layers,
+  selectedId,
+  onSelect,
+}: {
+  layers: Layer[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+}) {
+  const ref = useRef<HTMLDetailsElement>(null)
+  const selected = layers.find((l) => l.id === selectedId)
+  const label = selected?.name ?? `${layers.length} ${layers.length === 1 ? 'layer' : 'layers'}`
+  return (
+    <details ref={ref} className="popover tool-popover layer-picker">
+      <summary className="layer-picker-summary" title="Pick a layer, even one hidden under others">
+        <Icon name="layers" size={14} />
+        <span className="layer-picker-name">{label}</span>
+      </summary>
+      <div className="popover-panel layer-list" role="group" aria-label="Layers, top first">
+        {[...layers].reverse().map((l, i) => (
+          <button
+            key={l.id}
+            type="button"
+            className={`layer-item ${l.id === selectedId ? 'on' : ''}`}
+            aria-current={l.id === selectedId ? 'true' : undefined}
+            onClick={() => {
+              if (ref.current) ref.current.open = false
+              onSelect(l.id)
+            }}
+          >
+            <span className="layer-item-thumb is-transparent">
+              {getImage(l.imageId) ? <img src={getImage(l.imageId)!.url} alt="" /> : null}
+            </span>
+            <span className="layer-item-name">{l.name}</span>
+            <span className="layer-item-num">{layers.length - i}</span>
+          </button>
+        ))}
+      </div>
+    </details>
   )
 }
 

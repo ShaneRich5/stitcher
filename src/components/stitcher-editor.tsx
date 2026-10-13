@@ -44,7 +44,7 @@ import { AppNav } from './app-nav'
 import { CarouselControls } from './carousel-controls'
 import { CarouselStage } from './carousel-stage'
 import { Icon } from './icons'
-import { ImageControls, SubjectPicker, type CutoutMode } from './image-controls'
+import { ImageControls, LayerPicker, SubjectPicker, type ControlsDetail, type CutoutMode } from './image-controls'
 import { SlideStrip } from './slide-strip'
 import { SwipePreview } from './swipe-preview'
 
@@ -53,6 +53,16 @@ const NUDGE = 4
 const PORTRAIT_BLUR = 16
 /** Faces are looked for this long after the images settle, so loading photos comes first. */
 const FACE_CHECK_DELAY = 800
+const DETAIL_KEY = 'stitcher.carousel.controls'
+
+/** Remembering the bar's size is a convenience, so a browser that blocks storage gets compact. */
+function readStoredDetail(): ControlsDetail {
+  try {
+    return localStorage.getItem(DETAIL_KEY) === 'detailed' ? 'detailed' : 'compact'
+  } catch {
+    return 'compact'
+  }
+}
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -82,6 +92,7 @@ export function StitcherEditor() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [activeSlideRaw, setActiveSlide] = useState(0)
   const [dockTab, setDockTab] = useState<'carousel' | 'image'>('carousel')
+  const [detail, setDetail] = useState<ControlsDetail>(readStoredDetail)
   const [exportFormat, setExportFormat] = useState<ImageFormat>('png')
   /** An export setting, like the format, so it stays out of the doc and its undo history. */
   const [jpegQuality, setJpegQuality] = useState(DEFAULT_JPEG_QUALITY)
@@ -136,6 +147,14 @@ export function StitcherEditor() {
     if (!hydrated) return
     scheduleSave(doc)
   }, [doc, hydrated])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DETAIL_KEY, detail)
+    } catch {
+      // A browser that blocks storage just won't remember the choice.
+    }
+  }, [detail])
 
   useEffect(() => {
     window.addEventListener('pagehide', flushSave)
@@ -553,6 +572,10 @@ export function StitcherEditor() {
       layer={selected}
       zoom={layerZoom(doc, selected)}
       variant={isPhone ? 'sheet' : 'toolbar'}
+      detail={detail}
+      onDetail={setDetail}
+      layers={doc.layers}
+      onSelectLayer={select}
       onFit={setFit}
       onZoom={(z) => patchLayer(selected.id, (d, l) => zoomLayer(d, l, z), `zoom-${selected.id}`)}
       onRotate={(deg) =>
@@ -687,9 +710,20 @@ export function StitcherEditor() {
               </label>
             </div>
           ) : null}
-
-          {selected && !isPhone ? imageControls : null}
         </div>
+
+        {/* Desktop: the image controls get a row of their own under the canvas, so they never
+            cover the photo, and the row stays when nothing is selected so the canvas doesn't jump. */}
+        {isPhone ? null : (
+          <div className={`selection-bar is-${detail}`}>
+            {imageControls ?? (
+              <div className="selection-hint">
+                {hasImages ? <LayerPicker layers={doc.layers} selectedId={null} onSelect={select} /> : null}
+                <span>{hasImages ? 'Select an image to edit it, or pick one from the list' : 'Add a photo to start'}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <SlideStrip
           doc={doc}

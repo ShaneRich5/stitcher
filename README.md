@@ -24,8 +24,10 @@ The landing page at `/` links to each tool.
 - **Add images**: drop, paste or pick several. Each lands on its own slide and can be moved anywhere.
   HEIC photos from an iPhone are converted on your device, and any file that can't be opened says
   why.
-- Per-image toolbar: Fill / Fit / Free, zoom, rotate (slider or 90 degrees), flip, aspect lock,
-  layer order, duplicate (Ctrl/Cmd+D), replace, delete. Drag, resize and rotate on the canvas;
+- Per-image controls in a bar under the canvas, compact (one row) or detailed (**More**, adds the
+  zoom and rotate sliders): Fill / Fit / Free, zoom, rotate (slider or 90 degrees), flip, aspect
+  lock, layer order, duplicate (Ctrl/Cmd+D), replace, delete. The image's name opens a list of
+  every layer, so a photo hidden under others can still be selected. Drag, resize and rotate on the canvas;
   arrow keys nudge.
 - **Cut out** a photo's subject on your device: remove the background, cut it out to a new layer
   over the untouched photo, or **Portrait** to blur the photo behind a sharp subject. Cutouts are

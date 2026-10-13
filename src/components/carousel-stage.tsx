@@ -558,7 +558,17 @@ export function CarouselStage({
         role="application"
         aria-roledescription="carousel canvas"
         aria-label="Canvas. Tab and Shift+Tab select layers, arrow keys move the selected one, and Enter opens its controls."
-        onKeyDown={onStageKeyDown}
+        onKeyDown={(e) => {
+          delete e.currentTarget.dataset.pointer
+          onStageKeyDown(e)
+        }}
+        // A click right after a key press would show the keyboard focus ring; only Tab should.
+        onPointerDown={(e) => {
+          e.currentTarget.dataset.pointer = ''
+        }}
+        onBlur={(e) => {
+          delete e.currentTarget.dataset.pointer
+        }}
       >
         <div ref={canvasRef} className="stage-canvas" style={{ width: stageW, height: stageH }}>
           <Stage
