@@ -1,10 +1,12 @@
 import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
+  coverSlide,
   createDoc,
   cropLayerImage,
   duplicateLayer,
   insertLayerAbove,
+  isWholeImage,
   layerZoom,
   makeLayer,
   moveLayer,
@@ -15,8 +17,11 @@ import {
   replaceLayerImage,
   resetToFit,
   setSlideCount,
+  slideCoverCrop,
+  slideToCover,
   zoomLayer,
 } from '../lib/carousel'
+import { cropImage } from '../lib/crop-image'
 import { isoDate, photoDate } from '../lib/date-stamp'
 import { downloadBlob } from '../lib/download'
 import {
@@ -410,6 +415,31 @@ export function StitcherEditor() {
     patchLayer(selected.id, () => moved)
   }
 
+  /**
+   * Cover the slide in view (or the one under the photo) with the selected photo, cropped to the
+   * slide so nothing spills onto the others. One undo step.
+   */
+  const fillSlideSelected = async () => {
+    if (!selected) return
+    const { id: layerId, imageId, name, naturalWidth, naturalHeight } = selected
+    const slide = slideToCover(doc, selected, activeSlide)
+    const crop = slideCoverCrop(doc, selected, slide)
+    try {
+      const img = isWholeImage(selected, crop)
+        ? { id: imageId, name, naturalWidth, naturalHeight }
+        : await cropImage(imageId, name, crop)
+      patchDoc((d) => {
+        // Leave the doc alone if the layer was deleted, its photo replaced or the slide removed meanwhile.
+        const original = d.layers.find((l) => l.id === layerId)
+        if (original?.imageId !== imageId || slide >= d.count) return d
+        return { ...d, layers: d.layers.map((l) => (l.id === layerId ? coverSlide(d, l, slide, img) : l)) }
+      })
+    } catch (e) {
+      console.error(e)
+      say('Could not fill the slide')
+    }
+  }
+
   /** Stamp the selected photo with the date it was taken (its EXIF), or else its file's date. */
   const stampSelected = async () => {
     if (!selected) return
@@ -620,6 +650,8 @@ export function StitcherEditor() {
         onRotate90={() => patchLayer(selected.id, (_, l) => ({ ...l, rotation: normalizeDegrees(l.rotation + 90) }))}
         onFlip={() => patchLayer(selected.id, (_, l) => ({ ...l, flipX: !l.flipX }))}
         onToggleLock={() => patchLayer(selected.id, (_, l) => ({ ...l, lockAspect: !l.lockAspect }))}
+        onToggleSnap={() => patchLayer(selected.id, (_, l) => ({ ...l, snapOff: l.snapOff ? undefined : true }))}
+        onFillSlide={() => void fillSlideSelected()}
         onReplace={(f) => void replaceFile(f)}
         onDuplicate={duplicateSelected}
         onCutout={(mode) => void cutOutSelected(mode)}

@@ -28,3 +28,7 @@ dist-ssr
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Playwright
+test-results
+playwright-report

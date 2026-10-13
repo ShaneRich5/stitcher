@@ -112,7 +112,11 @@ npm run build     # type-check + production build to dist/
 npm run preview   # serve the production build
 npm run lint
 npm test          # Vitest unit tests (src/lib/*.test.ts)
+npm run test:e2e  # Playwright end-to-end tests (e2e/) against the production build
 ```
+
+The first time, install the browser the end-to-end tests drive with `npx playwright install chromium`.
+Pull requests run both test suites through `.github/workflows/test.yml`.
 
 Every push to `main` deploys to GitHub Pages through `.github/workflows/`.
 

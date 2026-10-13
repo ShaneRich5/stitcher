@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   baseBox,
+  coverSlide,
   createDoc,
+  isWholeImage,
   layerZoom,
   makeLayer,
   moveLayer,
@@ -12,6 +14,8 @@ import {
   removeSlide,
   replaceLayerImage,
   setSlideCount,
+  slideCoverCrop,
+  slideToCover,
   zoomLayer,
   type LoadedImage,
 } from './carousel'
@@ -265,5 +269,55 @@ describe('profileGridCrop', () => {
 
   it('is null for 3:4', () => {
     expect(profileGridCrop({ slideW: 1080, slideH: 1440 })).toBeNull()
+  })
+})
+
+describe('slideCoverCrop', () => {
+  it('takes the slide-shaped middle of an image centered on the slide', () => {
+    const layer = makeLayer(doc, wide, 'free', 1)
+    const crop = slideCoverCrop(doc, layer, 1)
+    expect(crop.height).toBeCloseTo(1000)
+    expect(crop.width).toBeCloseTo(800)
+    expect(crop.x).toBeCloseTo(600)
+    expect(crop.y).toBeCloseTo(0)
+  })
+
+  it('follows the part of a row-wide photo that is over the slide, mirrored with it', () => {
+    // Five slides make the row 5400 wide, so the fill is 2.7× and slide 1's center is at 600.
+    const five = { ...doc, count: 5 }
+    const layer = makeLayer(five, wide, 'fill')
+    expect(slideCoverCrop(five, layer, 1).x).toBeCloseTo(200)
+    expect(slideCoverCrop(five, { ...layer, flipX: true }, 1).x).toBeCloseTo(1000)
+  })
+
+  it('stays inside the image near its edge', () => {
+    const layer = makeLayer(doc, wide, 'fill')
+    expect(slideCoverCrop(doc, layer, 0).x).toBe(0)
+    expect(slideCoverCrop(doc, layer, 2).x).toBeCloseTo(1200)
+  })
+
+  it('keeps the whole image when it is already the slide shape', () => {
+    const portrait: LoadedImage = { id: 'p', name: 'p.jpg', naturalWidth: 800, naturalHeight: 1000 }
+    const layer = makeLayer(doc, portrait, 'free', 0)
+    expect(isWholeImage(layer, slideCoverCrop(doc, layer, 0))).toBe(true)
+    const sq = makeLayer(doc, square, 'free', 0)
+    expect(isWholeImage(sq, slideCoverCrop(doc, sq, 0))).toBe(false)
+  })
+})
+
+describe('coverSlide', () => {
+  it('puts the image over the slide exactly, unturned and free', () => {
+    const layer = { ...makeLayer(doc, square, 'fill'), rotation: 12 }
+    const placed = coverSlide(doc, layer, 2, { id: 'crop', name: 'square.jpg', naturalWidth: 800, naturalHeight: 1000 })
+    expect(placed).toMatchObject({ imageId: 'crop', fit: 'free', rotation: 0, x: 2160, y: 0, width: 1080, height: 1350 })
+  })
+})
+
+describe('slideToCover', () => {
+  it('prefers the slide in view when the layer is on it, else the one under its center', () => {
+    const fill = makeLayer(doc, wide, 'fill')
+    expect(slideToCover(doc, fill, 2)).toBe(2)
+    const free = makeLayer(doc, square, 'free', 0)
+    expect(slideToCover(doc, free, 2)).toBe(0)
   })
 })

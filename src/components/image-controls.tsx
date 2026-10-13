@@ -33,6 +33,10 @@ export type ImageControlsProps = {
   onRotate90: () => void
   onFlip: () => void
   onToggleLock: () => void
+  /** Turn snapping to the slide sides and guides off for this image, or back on. */
+  onToggleSnap: () => void
+  /** Cover the current slide edge to edge, cropping what would spill onto the others. */
+  onFillSlide: () => void
   onReplace: (file: File) => void
   onDuplicate: () => void
   onCutout: (mode: CutoutMode) => void
@@ -128,6 +132,8 @@ export function ImageControls({
   onRotate90,
   onFlip,
   onToggleLock,
+  onToggleSnap,
+  onFillSlide,
   onReplace,
   onDuplicate,
   onCutout,
@@ -304,6 +310,13 @@ export function ImageControls({
             onClick={onToggleLock}
             pressed={layer.lockAspect}
           />
+          <ToolButton
+            icon="magnet"
+            label={layer.snapOff ? 'Snapping off' : 'Snapping on'}
+            onClick={onToggleSnap}
+            pressed={!layer.snapOff}
+          />
+          <ToolButton icon="fill-slide" label="Fill this slide" onClick={onFillSlide} />
           <ToolButton icon="forward" label="Bring forward" onClick={onForward} />
           <ToolButton icon="backward" label="Send backward" onClick={onBackward} />
           <ToolButton icon="copy" label="Duplicate" onClick={onDuplicate} />

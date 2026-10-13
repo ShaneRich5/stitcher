@@ -36,6 +36,8 @@ export type Layer = {
   hidden?: boolean
   /** Can't be grabbed on the canvas, so whatever is under it can be; still picked from the layer list. */
   locked?: boolean
+  /** When true, dragging and resizing it on the canvas don't snap to the slide sides and guides. */
+  snapOff?: boolean
 }
 
 /** `ymd` is '98 10 12, `mdy` is 10 12 '98 and `dmy` is 12.10.98. */
