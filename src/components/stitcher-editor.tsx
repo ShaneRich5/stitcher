@@ -32,7 +32,7 @@ import { facesOnEdges, nudgeOffEdges, type FaceMap } from '../lib/face-edges'
 import { handOffFrames } from '../lib/handoff'
 import { getImage, registerBlob } from '../lib/image-registry'
 import { DEFAULT_LIGHT_LEAKS, newLeakSeed } from '../lib/light-leaks'
-import { IMAGE_ACCEPT, listFiles, loadImageFiles } from '../lib/load-image'
+import { listFiles, loadImageFiles } from '../lib/load-image'
 import { flushSave, loadProject, scheduleSave } from '../lib/persist-project'
 import { cutoutFromMask, removeBackground, type Cutout } from '../lib/remove-background'
 import { useEditorHistory } from '../lib/use-editor-history'
@@ -43,9 +43,11 @@ import type { CarouselDoc, FitMode, GifFrame, Layer } from '../types'
 import { AppNav } from './app-nav'
 import { CarouselControls } from './carousel-controls'
 import { CarouselStage } from './carousel-stage'
+import { CarouselWelcome } from './carousel-welcome'
 import { Icon } from './icons'
 import { ImageControls, LayerPicker, SubjectPicker, type ControlsDetail, type CutoutMode } from './image-controls'
 import { SlideStrip } from './slide-strip'
+import { StartOverDialog } from './start-over-dialog'
 import { SwipePreview } from './swipe-preview'
 
 const NUDGE = 4
@@ -97,6 +99,7 @@ export function StitcherEditor() {
   /** An export setting, like the format, so it stays out of the doc and its undo history. */
   const [jpegQuality, setJpegQuality] = useState(DEFAULT_JPEG_QUALITY)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [startOverOpen, setStartOverOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   /** Progress text while a background is being removed; null when idle. */
   const [cutoutStatus, setCutoutStatus] = useState<string | null>(null)
@@ -119,6 +122,8 @@ export function StitcherEditor() {
   const selected = doc.layers.find((l) => l.id === selectedId) ?? null
   const thumbs = useSlideThumbnails(doc, 96)
   const hasImages = doc.layers.length > 0
+  // Until the autosave is restored it isn't known whether there's work, so neither view shows.
+  const welcome = hydrated && !hasImages
   const showImageTab = isPhone && selected !== null && dockTab === 'image'
   // Picking ends by itself if its layer is deselected, deleted or given another photo.
   const activePick =
@@ -412,6 +417,17 @@ export function StitcherEditor() {
     setDockTab('carousel')
   }
 
+  /** A fresh carousel, with the undo history cleared too, as the warning says it can't come back. */
+  const startOver = () => {
+    reset(createDoc())
+    cancelPicking()
+    setSelectedId(null)
+    setActiveSlide(0)
+    setFaces({})
+    setDockTab('carousel')
+    setStartOverOpen(false)
+  }
+
   const exportSlides = async (mode: 'download' | 'share') => {
     if (!hasImages || busy) return
     setBusy(true)
@@ -463,7 +479,7 @@ export function StitcherEditor() {
   }
 
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
-    if (isTypingTarget(e.target) || previewOpen) return
+    if (isTypingTarget(e.target) || previewOpen || startOverOpen) return
     const mod = e.ctrlKey || e.metaKey
     const key = e.key.toLowerCase()
     if (activePick) {
@@ -554,6 +570,7 @@ export function StitcherEditor() {
       onMakeAnimation={hasImages ? () => void makeAnimation() : undefined}
       onSplitFile={(f) => void splitFile(f)}
       onAddFiles={(f) => void addFiles(f)}
+      onStartOver={hasImages ? () => setStartOverOpen(true) : undefined}
     />
   )
 
@@ -663,107 +680,94 @@ export function StitcherEditor() {
         }}
         onDrop={onDrop}
       >
-        {isPhone ? null : <div className="split-bar">{carouselControls}</div>}
-
-        <div className="workspace">
-          <CarouselStage
+        {welcome ? (
+          <CarouselWelcome
             doc={doc}
-            selectedId={selectedId}
-            activeSlide={activeSlide}
-            faces={faces}
-            picking={
-              activePick
-                ? { layerId: activePick.layerId, points: activePick.points, overlay: activePick.choice?.overlay ?? null }
-                : null
-            }
-            onPick={addPickPoint}
-            onSelect={select}
-            onBackgroundPress={(i) => {
-              setSelectedId(null)
-              if (i !== null) setActiveSlide(i)
-            }}
-            onLayerChange={(id, patch) =>
-              patchLayer(id, (_, l) => ({ ...l, ...patch }), `drag-${id}`)
-            }
+            onCount={(n) => patchDoc((d) => setSlideCount(d, n), 'count')}
+            onFormat={(slideW, slideH) => patchDoc((d) => relayout(d, { ...d, slideW, slideH }))}
+            onFiles={(f) => void addFiles(f)}
           />
+        ) : (
+          <>
+            {isPhone ? null : <div className="split-bar">{carouselControls}</div>}
 
-          {!hasImages && hydrated ? (
-            <div className="empty-state">
-              <Icon name="scissors" size={28} />
-              <h2>Split one photo across your carousel</h2>
-              <p>
-                Drop a wide photo here, paste one, or pick it below. It is sliced into {doc.count} slides that swipe
-                as a single picture.
-              </p>
-              <label className="btn btn-primary">
-                Choose a photo
-                <input
-                  type="file"
-                  accept={IMAGE_ACCEPT}
-                  className="visually-hidden"
-                  onChange={(e) => {
-                    const files = listFiles(e.target.files)
-                    if (files.length) void addFiles(files)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
+            <div className="workspace">
+              <CarouselStage
+                doc={doc}
+                selectedId={selectedId}
+                activeSlide={activeSlide}
+                faces={faces}
+                picking={
+                  activePick
+                    ? { layerId: activePick.layerId, points: activePick.points, overlay: activePick.choice?.overlay ?? null }
+                    : null
+                }
+                onPick={addPickPoint}
+                onSelect={select}
+                onBackgroundPress={(i) => {
+                  setSelectedId(null)
+                  if (i !== null) setActiveSlide(i)
+                }}
+                onLayerChange={(id, patch) =>
+                  patchLayer(id, (_, l) => ({ ...l, ...patch }), `drag-${id}`)
+                }
+              />
             </div>
-          ) : null}
-        </div>
 
-        {/* Desktop: the image controls get a row of their own under the canvas, so they never
-            cover the photo, and the row stays when nothing is selected so the canvas doesn't jump. */}
-        {isPhone ? null : (
-          <div className={`selection-bar is-${detail}`}>
-            {imageControls ?? (
-              <div className="selection-hint">
-                {hasImages ? <LayerPicker layers={doc.layers} selectedId={null} onSelect={select} /> : null}
-                <span>{hasImages ? 'Select an image to edit it, or pick one from the list' : 'Add a photo to start'}</span>
+            {/* Desktop: the image controls get a row of their own under the canvas, so they never
+                cover the photo, and the row stays when nothing is selected so the canvas doesn't jump. */}
+            {isPhone ? null : (
+              <div className={`selection-bar is-${detail}`}>
+                {imageControls ?? (
+                  <div className="selection-hint">
+                    {hasImages ? <LayerPicker layers={doc.layers} selectedId={null} onSelect={select} /> : null}
+                    <span>{hasImages ? 'Select an image to edit it, or pick one from the list' : 'Add a photo to start'}</span>
+                  </div>
+                )}
               </div>
             )}
-          </div>
+
+            <SlideStrip
+              doc={doc}
+              thumbs={thumbs}
+              activeSlide={activeSlide}
+              onSelect={(i) => {
+                setActiveSlide(i)
+                setSelectedId(null)
+                setPicking(null)
+              }}
+              onAdd={() => patchDoc((d) => setSlideCount(d, d.count + 1))}
+              onRemove={(i) => patchDoc((d) => removeSlide(d, i))}
+            />
+
+            {isPhone ? (
+              <div className="dock">
+                <div className="dock-tabs" role="tablist" aria-label="Controls">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={!showImageTab}
+                    className={!showImageTab ? 'on' : ''}
+                    onClick={() => setDockTab('carousel')}
+                  >
+                    Carousel
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={showImageTab}
+                    className={showImageTab ? 'on' : ''}
+                    disabled={!selected}
+                    onClick={() => setDockTab('image')}
+                  >
+                    Image
+                  </button>
+                </div>
+                <div className="dock-body">{showImageTab ? imageControls : carouselControls}</div>
+              </div>
+            ) : null}
+          </>
         )}
-
-        <SlideStrip
-          doc={doc}
-          thumbs={thumbs}
-          activeSlide={activeSlide}
-          onSelect={(i) => {
-            setActiveSlide(i)
-            setSelectedId(null)
-            setPicking(null)
-          }}
-          onAdd={() => patchDoc((d) => setSlideCount(d, d.count + 1))}
-          onRemove={(i) => patchDoc((d) => removeSlide(d, i))}
-        />
-
-        {isPhone ? (
-          <div className="dock">
-            <div className="dock-tabs" role="tablist" aria-label="Controls">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={!showImageTab}
-                className={!showImageTab ? 'on' : ''}
-                onClick={() => setDockTab('carousel')}
-              >
-                Carousel
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={showImageTab}
-                className={showImageTab ? 'on' : ''}
-                disabled={!selected}
-                onClick={() => setDockTab('image')}
-              >
-                Image
-              </button>
-            </div>
-            <div className="dock-body">{showImageTab ? imageControls : carouselControls}</div>
-          </div>
-        ) : null}
 
         {dragging ? <div className="drop-overlay">Drop to add</div> : null}
         {cutoutStatus || notice ? (
@@ -776,6 +780,7 @@ export function StitcherEditor() {
       {previewOpen ? (
         <SwipePreview doc={doc} startIndex={activeSlide} onClose={() => setPreviewOpen(false)} />
       ) : null}
+      {startOverOpen ? <StartOverDialog onConfirm={startOver} onCancel={() => setStartOverOpen(false)} /> : null}
     </>
   )
 }
