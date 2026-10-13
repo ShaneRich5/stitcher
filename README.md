@@ -101,7 +101,7 @@ The landing page at `/` links to each tool.
 
 ## Getting started
 
-Requires Node 22 (the version CI uses).
+Requires Node 24 (the version CI uses).
 
 ```bash
 npm install
