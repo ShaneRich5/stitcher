@@ -30,7 +30,15 @@ export type Layer = {
   blur?: number
   /** Color adjustments and a film look. All amounts, not sizes, so they don't scale with the format. */
   look?: LayerLook
+  /** The date in the photo's corner, the way a point-and-shoot printed it. */
+  dateStamp?: LayerDateStamp
 }
+
+/** `ymd` is '98 10 12, `mdy` is 10 12 '98 and `dmy` is 12.10.98. */
+export type DateStampFormat = 'ymd' | 'mdy' | 'dmy'
+
+/** `date` is YYYY-MM-DD, read from the photo's EXIF when it has one, so the doc stays plain data. */
+export type LayerDateStamp = { date: string; format: DateStampFormat }
 
 /** The presets in `lib/film-looks`. */
 export type FilmLookId = 'golden' | 'instant' | 'disposable' | 'slide' | 'matte' | 'retro' | 'cinema' | 'mono'
@@ -92,4 +100,9 @@ export type CarouselDoc = {
   /** Fill behind the layers; null exports transparent PNGs. */
   background: string | null
   layers: Layer[]
+  /** Light leaking across the seams, over every layer. Optional so older autosaves still load. */
+  lightLeaks?: LightLeaks
 }
+
+/** `amount` 0 to 1 (0 is off); `seed` places the leaks, and Shuffle picks a new one. */
+export type LightLeaks = { amount: number; color: string; seed: number }

@@ -10,7 +10,7 @@ import {
   MIN_DELAY_MS,
   type GifDoc,
 } from '../lib/gif-doc'
-import { imageFiles } from '../lib/load-image'
+import { IMAGE_ACCEPT, listFiles } from '../lib/load-image'
 import { GIF_BACKGROUNDS, OUTPUT_SIZE_PRESETS } from '../lib/platform-presets'
 import { Icon } from './icons'
 
@@ -220,12 +220,12 @@ export function GifControls({ doc, section = 'bar', onPatch, onAddFiles }: Props
       <input
         ref={addRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_ACCEPT}
         multiple
         className="visually-hidden"
         tabIndex={-1}
         onChange={(e) => {
-          const files = imageFiles(e.target.files)
+          const files = listFiles(e.target.files)
           if (files.length) onAddFiles(files)
           e.target.value = ''
         }}

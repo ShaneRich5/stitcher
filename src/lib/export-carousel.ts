@@ -6,13 +6,20 @@ export type ImageFormat = 'png' | 'jpeg'
 
 export type SlideFile = { blob: Blob; filename: string }
 
-export function toBlob(canvas: HTMLCanvasElement, format: ImageFormat): Promise<Blob> {
+/** JPEG quality, 0–1, when none is chosen. PNG ignores it. */
+export const DEFAULT_JPEG_QUALITY = 0.92
+
+export function toBlob(
+  canvas: HTMLCanvasElement,
+  format: ImageFormat,
+  jpegQuality = DEFAULT_JPEG_QUALITY,
+): Promise<Blob> {
   const type = format === 'png' ? 'image/png' : 'image/jpeg'
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error(`Could not encode ${type}`))),
       type,
-      format === 'jpeg' ? 0.92 : undefined,
+      format === 'jpeg' ? jpegQuality : undefined,
     )
   })
 }
@@ -39,6 +46,7 @@ function cutCell(
 export async function renderSlideFiles(
   doc: CarouselDoc,
   format: ImageFormat,
+  jpegQuality = DEFAULT_JPEG_QUALITY,
 ): Promise<SlideFile[]> {
   const ext = format === 'png' ? 'png' : 'jpg'
   const pad = Math.max(2, String(doc.count).length)
@@ -50,13 +58,13 @@ export async function renderSlideFiles(
     const slide = renderSlide(doc, i, 1, format === 'jpeg' ? '#ffffff' : undefined)
     const name = `slide-${String(i + 1).padStart(pad, '0')}`
     if (cols * rows === 1) {
-      files.push({ blob: await toBlob(slide, format), filename: `${name}.${ext}` })
+      files.push({ blob: await toBlob(slide, format, jpegQuality), filename: `${name}.${ext}` })
       continue
     }
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const cell = cutCell(slide, c, r, cols, rows)
-        files.push({ blob: await toBlob(cell, format), filename: `${name}_r${r + 1}_c${c + 1}.${ext}` })
+        files.push({ blob: await toBlob(cell, format, jpegQuality), filename: `${name}_r${r + 1}_c${c + 1}.${ext}` })
       }
     }
   }

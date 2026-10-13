@@ -1,94 +1,89 @@
-You are working on a frontend-only image carousel tool called "Stitcher".
-
-
+You are working on "Stitcher", a browser-only image studio for social media: seamless carousels,
+GIFs and videos from frames, and video collages. Read `docs/architecture.md` for how it works and
+`docs/roadmap.md` for what's planned before making larger changes.
 
 Core principles:
 
-- This is a client-side only application (no backend, no APIs, no authentication).
-
-- All image processing must happen in the browser using Canvas APIs.
-
-- Do not introduce Next.js, server frameworks, or backend services.
-
-
+- Client-side only: no backend, no server APIs, no accounts or authentication.
+- All image work happens in the browser (Canvas, Konva, WebCodecs). In-browser models (background
+  removal, subject picking, face detection) are fetched as static files on first use and run locally.
+- Free, with no watermark and no paywall.
 
 Architecture:
 
-- Use Vite + React + TypeScript.
+- Vite + React + TypeScript, with the React Compiler.
+- TanStack Router with file-based routes under `src/routes/` (the plugin generates
+  `src/routeTree.gen.ts`; don't edit it by hand).
+- Konva / react-konva for the carousel stage: layers, transforms, snapping and selection.
+- The native Canvas API for export: `renderSlide` redraws each slide from the source images.
+- JSZip for multi-file exports, gifenc for GIFs, Mediabunny (WebCodecs) for MP4/WebM.
 
-- Use TanStack Router with file-based routes under `src/routes/` (plugin generates `src/routeTree.gen.ts`).
+Data and rendering rules:
 
-- Use Konva.js for canvas rendering, transforms, and user interactions (carousel/composer tools).
+- The `CarouselDoc` is the source of truth, not the Konva stage. Export never reads the stage:
+  `renderSlide` redraws each slide from the doc and the source pixels, at full resolution.
+- Docs hold plain, JSON-serializable data. Images are referenced by `imageId` and decoded through
+  `lib/image-registry.ts`; never put an `HTMLImageElement` or a `Blob` in a doc.
+- Anything drawn on a layer (outline, shadow, blur, look, date stamp) goes through
+  `drawLayerContent`, and anything over the whole carousel (light leaks) through `renderSlide` and
+  the stage alike, so the editor, the thumbnails and the export match.
+- Keep `src/lib` free of React, and keep the geometry and maths DOM-free, so it can be unit-tested
+  and shared with a future native app.
 
-- Use native Canvas API for image slicing/export and GIF/video frame rasterization.
+State rules:
 
-- Use JSZip for exporting multiple images as a zip file.
+- Every carousel edit goes through `commit` in `useEditorHistory`. Rapid edits (sliders, drags,
+  arrow-key nudges, color pickers) pass a `coalesce` key so they form one undo step.
+- Export and view settings (export format, JPEG quality, zoom, overlays) stay out of the doc and
+  its undo history.
+- New optional fields on `Layer` or `CarouselDoc` must stay optional, so older autosaves still load.
 
-- Use gifenc for encoding animated GIFs in the browser.
+React rules (enforced by the React Compiler lint rules):
 
-- Use Mediabunny (WebCodecs) for MP4/WebM video exports from frame sequences.
-
-
-
-Canvas rules:
-
-- The canvas is always the source of truth for image layout.
-
-- Avoid manipulating image data outside the canvas pipeline.
-
-- All exports must be derived from canvas rendering, not original image state.
-
-
+- No ref reads or writes during render.
+- No synchronous `setState` in effects; derive values during render instead.
+- Use `useEffectEvent` for event handlers that window listeners call.
 
 UI/UX rules:
 
-- Keep UI minimal and tool-focused (not app/platform-like).
-
-- Prioritize drag, scale, and slice interaction simplicity.
-
-- Use Tailwind CSS for styling when introduced; existing tools may use shared CSS in `index.css`.
-
-- Shared chrome (nav) lives in the root route; each tool is its own route page.
-
-
+- Keep the UI minimal and tool-focused.
+- Styling is plain CSS: shared tokens in `index.css`, the editor shell in `editor.css`. Don't add
+  Tailwind or a CSS-in-JS library.
+- Each tool is its own route and renders its own `AppNav` with its actions; the tools share one
+  shell (control bar, workspace, thumbnail strip, phone dock).
+- Every control works on a phone (the dock) as well as on desktop.
 
 Code style:
 
-- Prefer simple functional components.
+- Prefer simple functional components and plain functions.
+- Keep state local unless it's shared across the stage and the controls.
+- Avoid unnecessary libraries or abstractions; heavy dependencies are loaded with `import()` on
+  first use, as the models and the HEIC converter are.
 
-- Keep state local unless shared across canvas/editor.
+Tests:
 
-- Avoid unnecessary libraries or abstractions.
-
-
+- Vitest (`npm test`) covers the pure logic in `src/lib` (`*.test.ts` beside each module). Add tests
+  for new geometry, parsing or history logic. CI runs them before every deploy.
 
 Naming:
 
-- All source filenames under `src/` use kebab-case (e.g. `multi-tile-composer.tsx`, `tile-export-zip.ts`, `app-nav.tsx`), not PascalCase or camelCase.
-
+- Source filenames under `src/` use kebab-case (e.g. `carousel-stage.tsx`, `export-carousel.ts`,
+  `app-nav.tsx`), not PascalCase or camelCase.
 - Single-word names stay lowercase (`main.tsx`, `types.ts`, `index.css`).
-
-- Exported React component identifiers remain PascalCase in code (e.g. `MultiTileComposer`).
-
-- Exported functions/types keep their existing camelCase/PascalCase identifiers; only filenames change.
-
-- Import paths must match the kebab-case filename (e.g. `./components/multi-tile-composer`, `./lib/export-tiles`).
-
-
+- Exported React components are PascalCase in code (e.g. `CarouselStage`); functions and types
+  keep camelCase / PascalCase identifiers.
+- Import paths match the kebab-case filename (e.g. `./components/carousel-stage`,
+  `./lib/export-carousel`).
 
 Do not:
 
-- Do not use Next.js.
-
-- Do not add a database or persistence layer.
-
+- Do not use Next.js or any server framework.
+- Do not add server-side persistence, cloud sync or accounts. Local persistence in the browser
+  (IndexedDB autosave) is fine.
 - Do not introduce TanStack Query or server-state libraries.
-
-- Do not add authentication.
-
-
+- Do not post to social platforms through their APIs (that needs a server and OAuth).
 
 Goal:
 
-Build a fast, lightweight, multi-tool image studio (carousel stitching, GIF from frames, and more) for social media.
-
+A fast, lightweight, free image studio (carousel stitching, GIF and video from frames, collages)
+that matches SCRL's editing power without its paywall, in any browser.

@@ -18,7 +18,7 @@ src/
     root-layout.tsx           App shell; each tool renders its own <AppNav> with its actions
     landing-page.tsx          Landing page: hero, panorama split into slides, links to the tools
     stitcher-editor.tsx       Carousel tool: state, handlers, keyboard, drag/drop, paste, export
-    carousel-stage.tsx        Konva stage: slides, layers, snapping, transformer
+    carousel-stage.tsx        Konva stage: slides, layers, snapping, transformer, zoom and pan
     carousel-controls.tsx     Whole-carousel controls (slides, format, split, style, export type)
     image-controls.tsx        Selected-image controls (floating toolbar / phone sheet)
     slide-strip.tsx           Thumbnails of the slides as posted
@@ -34,6 +34,7 @@ src/
   lib/
     carousel.ts               Doc helpers: makeLayer, zoom, relayout, slide add/remove
     gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay
+    handoff.ts                Frames passed between tools in memory (carousel slides -> GIF tool)
     collage.ts                CollageDoc helpers, timing, and drawCollageFrame (preview + export)
     image-registry.ts         imageId -> decoded image, object URL and source blob
     idb.ts, persist-project.ts  IndexedDB autosave of the carousel
@@ -43,12 +44,17 @@ src/
     choose-subject.ts         Tap to choose the subject: SlimSAM picks which part of RMBG's mask to keep
     detect-faces.ts           Face boxes per image with MediaPipe's BlazeFace, loaded on first use
     face-edges.ts             Faces a slide edge splits, and the Nudge that clears them (DOM-free)
-    layer-effects.ts          Outline, shadow, blur and look, drawn the same on the stage and in export
+    layer-effects.ts          Outline, shadow, blur, look and date stamp, drawn the same on the stage and in export
     film-looks.ts             Film presets and adjustments; gradePixels grades RGBA pixels (DOM-free)
+    light-leaks.ts            Seeded leaks on the seams between slides, drawn over every layer
+    date-stamp.ts             EXIF date reader and the seven-segment date stamp
+    load-image.ts             File intake: image-type checks, HEIC conversion, skipped-file messages
     export-carousel.ts        Slide/grid files, ZIP, Web Share
     use-editor-history.ts     Immutable undo/redo with coalescing
     use-slide-thumbnails.ts   Debounced thumbnails
     encode-gif.ts, encode-video.ts   GIF and MP4/WebM encoders (frame lists, or drawn timelines)
+    draw-frame.ts             fitContain and drawFrame, shared by every encoder
+    *.test.ts                 Vitest unit tests for the pure logic (npm test)
   types.ts                    Layer, CarouselDoc, FitMode, GifFrame, CollageItem
 ```
 
@@ -58,10 +64,10 @@ thumbnail strip, and a phone `.dock` with tabs. The styles live in `editor.css`.
 ## Data model
 
 ```ts
-CarouselDoc { slideW, slideH, count, gridCols, gridRows, background: string | null, layers }
+CarouselDoc { slideW, slideH, count, gridCols, gridRows, background: string | null, layers, lightLeaks? }
 Layer { id, name, imageId, naturalWidth, naturalHeight,
         x, y, width, height, rotation, flipX, fit, lockAspect,
-        outline?, shadow?, blur?, look? }
+        outline?, shadow?, blur?, look?, dateStamp? }
 
 GifDoc { frames, delayMs, holdLastMs, maxSize, background, reverse, loopOnce, format }
 GifFrame { id, name, imageId, naturalWidth, naturalHeight, holdMs? }
@@ -138,16 +144,52 @@ thumbnails, the swipe preview and the export, and the stage calls it from each i
   relative to the photo. Copies are cached under a pixel budget rather than a count, since "Apply
   to all photos" can give every layer one, and evicted canvases are emptied so Safari frees them.
   A cutout keeps its photo's look, so the subject matches what's behind it.
+- **Date stamp** is the orange date of a point-and-shoot print. Turning it on reads
+  `DateTimeOriginal` from the photo's EXIF (`exifDate`, a small APP1/TIFF parser over the first
+  256 KB of the source blob), then the file's last-modified date, then today, and stores the date
+  (`YYYY-MM-DD`) and a format on the layer, so the doc stays plain data. The digits are
+  seven-segment paths with a canvas-shadow glow, so no font downloads. They sit at the bottom right
+  of the part of the photo that's over the slides (`stampArea`), since a Fill photo usually runs
+  past the bottom of the row, and a flipped layer is mirrored back so they still read forwards.
+  A cutout placed as a new layer leaves the stamp with the photo.
+
+### Light leaks
+
+`CarouselDoc.lightLeaks` (`amount`, `color`, `seed`) adds leaks across the whole carousel rather
+than per photo: on a roll of film a leak bleeds across neighbouring frames, and slides are
+neighbours too. `leakSpots` places them from the seed, on about seven seams in ten and always at
+least one: each a large soft glow and often a smaller, redder one, every one crossing its seam.
+Each seam has its own generator, so adding a slide doesn't move the leaks on the others, and
+Shuffle picks a new seed. `drawLightLeaks` paints them in world space with a `screen` blend after
+the layers, in `renderSlide` (thumbnails, preview, export) and as a non-listening `Shape` on the
+stage, so exported slides placed side by side carry each leak across the seam.
 
 ## Stage and export
 
 - The Konva stage draws each layer twice: a faded, interactive copy (the Transformer target)
   and a full-opacity copy clipped to the slides.
+- **Zoom and pan.** By default the stage fits the row, or scrolls sideways once slides would drop
+  below 150 px. Ctrl/Cmd + wheel (and a trackpad pinch, which arrives as one), a two-finger pinch on
+  touch, or the zoom bar switch it to a view of its own: a stage the size of the workspace with a
+  scale (up to 400%) and an offset, so a long carousel at 400% never needs a huge canvas. The plain
+  wheel, Space + drag and a drag on empty canvas then pan, and **Fit** returns to the automatic
+  layout. The snap threshold (`8 / scale`) and stroke widths already follow the scale.
+- **Keyboard.** The canvas is focusable: Tab and Shift+Tab step through the layers in stacking
+  order (focus moves on past either end, keeping the selection), a polite live region names the
+  selected layer, and Enter jumps to its toolbar. Arrow keys nudge and Delete removes, as before.
+- **Profile grid.** Instagram's profile grid shows a centred 3:4 crop of the first slide
+  (`profileGridCrop`). The zoom bar's toggle shades what that crop cuts from slide 1, for formats
+  that aren't already 3:4, and the swipe preview shows the cover as it will look on the profile.
+  Export is unchanged.
 - Export does not read the stage. `renderSlide` redraws each slide from the source image
   pixels, so output is full resolution regardless of the on-screen zoom. Slides export at one
   world pixel per pixel, so a layer stretched more than 1.5× past its image (`layerUpscale`) gets a
   low-resolution note in the toolbar and on the slides it covers. It's derived, never stored. Grid cutting crops
-  that canvas. Files go into one ZIP (or a single file), or to the share sheet on phones.
+  that canvas. Files go into one ZIP (or a single file), or to the share sheet on phones. JPEG
+  quality (60–100, default 92) is an export setting kept beside the format, not in the doc.
+- **Make a GIF or video** renders each slide with `renderSlide`, registers it as an image, and hands
+  the frames to the GIF tool through `handoff.ts` (in memory, not the URL) before navigating there.
+  The GIF tool reads them in its initial state and clears the handoff once mounted.
 - Animation export pairs each frame with its hold in `playbackSteps` (`encode-gif.ts`) *before*
   reversing, so a hold travels with its own frame, and adds `holdLastMs` to whichever step ends up
   last. Both encoders consume those steps: the GIF writes each step's `delay`, and the video
@@ -217,6 +259,15 @@ more slides), never during drags.
   splits the fewest faces, as one undo step. A layer that covered an end of the row keeps covering
   it: rather than open a gap, the move pins that end and zooms in just enough.
 
+## Opening files
+
+Drops, pastes and file pickers all go through `listFiles`, which filters nothing, and
+`loadImageFiles`, which says why each file it skipped was skipped, so none disappear silently. A
+file counts as an image by its MIME type or, when the type is empty (Windows, some drag sources),
+by its extension. HEIC decodes natively only in Safari; elsewhere it's converted to JPEG with
+heic2any, imported on first use (about 1.3 MB), and kept as a `File` with the original's date for
+the date stamp. If that fails, the message suggests exporting as JPEG or opening Stitcher in Safari.
+
 ## State
 
 Carousel editing goes through `commit` in `useEditorHistory`. Rapid edits (sliders, arrow nudges,
@@ -233,6 +284,8 @@ yet; its frames live in component state.
 
 - Lint uses the React Compiler rules: no ref reads during render, no synchronous `setState`
   in effects.
-- No backend, accounts or persistence layer (see `.cursorrules`).
+- No backend, accounts or server-side persistence (see `.cursorrules`); the local IndexedDB
+  autosave is fine.
+- `npm test` runs Vitest over the pure logic in `lib/`; the deploy workflow runs it before building.
 - DOM-free logic in `lib/` (carousel, snap-guides, export naming) is kept separable so it can
   move to a shared package if an Expo app happens (see the roadmap).

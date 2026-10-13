@@ -1,15 +1,16 @@
 import { useRef } from 'react'
 import { isLowRes, layerUpscale } from '../lib/carousel'
+import { DATE_STAMP_FORMATS } from '../lib/date-stamp'
 import { FILM_LOOKS, isNeutralLook, NEUTRAL_LOOK, withFilm } from '../lib/film-looks'
 import { lookSwatch, OUTLINE_MAX } from '../lib/layer-effects'
-import { imageFiles } from '../lib/load-image'
-import type { FilmLookId, FitMode, Layer, LayerLook, LayerOutline, LayerShadow } from '../types'
+import { IMAGE_ACCEPT, listFiles } from '../lib/load-image'
+import type { DateStampFormat, FilmLookId, FitMode, Layer, LayerLook, LayerOutline, LayerShadow } from '../types'
 import { Icon, type IconName } from './icons'
 
 /** What "Cut out" does with the subject: replace the photo, add it above, or add it over a blur. */
 export type CutoutMode = 'replace' | 'layer' | 'portrait'
 
-export type EffectsPatch = Partial<Pick<Layer, 'outline' | 'shadow' | 'blur' | 'look'>>
+export type EffectsPatch = Partial<Pick<Layer, 'outline' | 'shadow' | 'blur' | 'look' | 'dateStamp'>>
 
 type Props = {
   layer: Layer
@@ -37,6 +38,8 @@ type Props = {
   onEffects: (patch: EffectsPatch, coalesce?: string) => void
   /** Give every photo this one's look. Left out when there's only one photo. */
   onLookToAll?: () => void
+  /** Turn the date stamp on, with the photo's own date. */
+  onDateStampOn: () => void
   onForward: () => void
   onBackward: () => void
   onDelete: () => void
@@ -129,6 +132,7 @@ export function ImageControls({
   onNudge,
   onEffects,
   onLookToAll,
+  onDateStampOn,
   onForward,
   onBackward,
   onDelete,
@@ -172,7 +176,7 @@ export function ImageControls({
     menuItem('choose', 'target', 'Choose subject…', 'Tap the one to cut out, when there are several', onChooseSubject),
   ]
 
-  const { outline, shadow } = layer
+  const { outline, shadow, dateStamp } = layer
   const blur = layer.blur ?? 0
   const effects = (
     <>
@@ -276,6 +280,47 @@ export function ImageControls({
         />
         <output>{Math.round(blur)} px</output>
       </label>
+
+      <div className="effect-group">
+        <label className="check-line" title="The date in the corner, from when the photo was taken">
+          <input
+            type="checkbox"
+            checked={!!dateStamp}
+            onChange={(e) => (e.target.checked ? onDateStampOn() : onEffects({ dateStamp: undefined }))}
+          />
+          Date stamp
+        </label>
+        {dateStamp ? (
+          <>
+            <label className="range-field">
+              <span>Date</span>
+              <input
+                type="date"
+                value={dateStamp.date}
+                required
+                onChange={(e) => {
+                  if (e.target.value) onEffects({ dateStamp: { ...dateStamp, date: e.target.value } }, 'stamp-date')
+                }}
+              />
+            </label>
+            <label className="range-field">
+              <span>Style</span>
+              <select
+                value={dateStamp.format}
+                onChange={(e) =>
+                  onEffects({ dateStamp: { ...dateStamp, format: e.target.value as DateStampFormat } })
+                }
+              >
+                {DATE_STAMP_FORMATS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        ) : null}
+      </div>
     </>
   )
 
@@ -449,11 +494,11 @@ export function ImageControls({
         <input
           ref={replaceRef}
           type="file"
-          accept="image/*"
+          accept={IMAGE_ACCEPT}
           className="visually-hidden"
           tabIndex={-1}
           onChange={(e) => {
-            const [file] = imageFiles(e.target.files)
+            const [file] = listFiles(e.target.files)
             if (file) onReplace(file)
             e.target.value = ''
           }}

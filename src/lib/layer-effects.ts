@@ -1,9 +1,10 @@
+import { drawDateStamp } from './date-stamp'
 import { getImage } from './image-registry'
 import { gradePixels, grainSeed, isNeutralLook, lookKey, NEUTRAL_LOOK, withFilm } from './film-looks'
 import type { FilmLookId, Layer, LayerLook, LayerShadow } from '../types'
 
 /**
- * Outline, shadow, blur and look for image layers. Each is drawn by `drawLayerContent`, which both
+ * Outline, shadow, blur, look and date stamp for image layers. Each is drawn by `drawLayerContent`, which both
  * the stage and `renderSlide` call, so the editor, the thumbnails and the export match. The outline,
  * the blur and the graded look are built once into canvases and cached, so redraws stay cheap.
  */
@@ -346,15 +347,16 @@ export function lookSwatch(layer: Layer, film: FilmLookId | null): string | unde
 /**
  * Draw a layer into its own unrotated box, (0, 0) to (width, height), with the context already
  * moved, turned and mirrored into place: the outline first, then the image, blurred and then
- * graded. The shadow falls from the outline when there is one, otherwise from the image.
- * `pxPerWorld` is canvas pixels per world pixel. `shadow: false` skips the shadow, for the stage's
- * faded copy under the slides.
+ * graded, then the date stamp. The shadow falls from the outline when there is one, otherwise from
+ * the image. `pxPerWorld` is canvas pixels per world pixel. `shadow: false` skips the shadow, for
+ * the stage's faded copy under the slides. `row` is the slides' size, so the date stamp can sit in
+ * the part of the photo that's on them.
  */
 export function drawLayerContent(
   ctx: CanvasRenderingContext2D,
   layer: Layer,
   pxPerWorld: number,
-  { shadow = true }: { shadow?: boolean } = {},
+  { shadow = true, row }: { shadow?: boolean; row?: { width: number; height: number } } = {},
 ) {
   const image = getImage(layer.imageId)?.image
   if (!image || layer.width < 1 || layer.height < 1) return
@@ -375,4 +377,5 @@ export function drawLayerContent(
   const graded = look ? gradedImage(layer, source, sourceKey, look, pxPerWorld) : source
   ctx.drawImage(graded, 0, 0, layer.width, layer.height)
   ctx.restore()
+  if (layer.dateStamp) drawDateStamp(ctx, layer, pxPerWorld, row)
 }

@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   createDoc,
   cropLayerImage,
@@ -15,23 +16,30 @@ import {
   setSlideCount,
   zoomLayer,
 } from '../lib/carousel'
+import { isoDate, photoDate } from '../lib/date-stamp'
 import { downloadBlob } from '../lib/download'
 import {
   canShareFiles,
+  DEFAULT_JPEG_QUALITY,
   renderSlideFiles,
   shareSlideFiles,
+  toBlob,
   zipSlideFiles,
   type ImageFormat,
 } from '../lib/export-carousel'
 import type { PickerStatus, SubjectChoice, SubjectPoint } from '../lib/choose-subject'
 import { facesOnEdges, nudgeOffEdges, type FaceMap } from '../lib/face-edges'
-import { imageFiles, loadImageFile } from '../lib/load-image'
+import { handOffFrames } from '../lib/handoff'
+import { getImage, registerBlob } from '../lib/image-registry'
+import { DEFAULT_LIGHT_LEAKS, newLeakSeed } from '../lib/light-leaks'
+import { IMAGE_ACCEPT, listFiles, loadImageFiles } from '../lib/load-image'
 import { flushSave, loadProject, scheduleSave } from '../lib/persist-project'
 import { cutoutFromMask, removeBackground, type Cutout } from '../lib/remove-background'
 import { useEditorHistory } from '../lib/use-editor-history'
 import { useMediaQuery } from '../lib/use-media-query'
+import { renderSlide } from '../lib/render-slide'
 import { useSlideThumbnails } from '../lib/use-slide-thumbnails'
-import type { CarouselDoc, FitMode, Layer } from '../types'
+import type { CarouselDoc, FitMode, GifFrame, Layer } from '../types'
 import { AppNav } from './app-nav'
 import { CarouselControls } from './carousel-controls'
 import { CarouselStage } from './carousel-stage'
@@ -75,6 +83,8 @@ export function StitcherEditor() {
   const [activeSlideRaw, setActiveSlide] = useState(0)
   const [dockTab, setDockTab] = useState<'carousel' | 'image'>('carousel')
   const [exportFormat, setExportFormat] = useState<ImageFormat>('png')
+  /** An export setting, like the format, so it stays out of the doc and its undo history. */
+  const [jpegQuality, setJpegQuality] = useState(DEFAULT_JPEG_QUALITY)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   /** Progress text while a background is being removed; null when idle. */
@@ -92,6 +102,7 @@ export function StitcherEditor() {
   const noticeTimer = useRef<number | undefined>(undefined)
   const isPhone = useMediaQuery('(max-width: 820px)')
   const canShare = canShareFiles()
+  const navigate = useNavigate()
 
   const activeSlide = Math.min(activeSlideRaw, doc.count - 1)
   const selected = doc.layers.find((l) => l.id === selectedId) ?? null
@@ -181,11 +192,9 @@ export function StitcherEditor() {
   }
 
   const loadAll = async (files: File[]) => {
-    const results = await Promise.allSettled(files.map(loadImageFile))
-    const loaded = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
-    const failed = results.length - loaded.length
-    if (failed) say(`Could not open ${failed} file${failed > 1 ? 's' : ''}`)
-    return loaded
+    const { images, message } = await loadImageFiles(files)
+    if (message) say(message)
+    return images
   }
 
   /** Put a single photo across every slide so it is split evenly. */
@@ -245,6 +254,7 @@ export function StitcherEditor() {
         outline: undefined,
         shadow: undefined,
         blur: undefined,
+        dateStamp: undefined,
       })
       if (mode === 'layer') return added
       return { ...added, layers: added.layers.map((l) => (l.id === layerId ? { ...l, blur: PORTRAIT_BLUR } : l)) }
@@ -357,6 +367,16 @@ export function StitcherEditor() {
     patchLayer(selected.id, () => moved)
   }
 
+  /** Stamp the selected photo with the date it was taken (its EXIF), or else its file's date. */
+  const stampSelected = async () => {
+    if (!selected) return
+    const { id, imageId } = selected
+    const blob = getImage(imageId)?.blob
+    const date = blob ? await photoDate(blob) : isoDate(new Date())
+    // Leave it alone if the photo was swapped while the date was being read.
+    patchLayer(id, (_, l) => (l.imageId === imageId ? { ...l, dateStamp: { date, format: 'ymd' } } : l))
+  }
+
   const duplicateSelected = () => {
     if (!selected) return
     const copyId = crypto.randomUUID()
@@ -377,7 +397,7 @@ export function StitcherEditor() {
     if (!hasImages || busy) return
     setBusy(true)
     try {
-      const files = await renderSlideFiles(doc, exportFormat)
+      const files = await renderSlideFiles(doc, exportFormat, jpegQuality)
       if (mode === 'share') {
         await shareSlideFiles(files)
       } else if (files.length === 1) {
@@ -389,6 +409,35 @@ export function StitcherEditor() {
       if (!(e instanceof DOMException && e.name === 'AbortError')) {
         say(e instanceof Error ? e.message : 'Export failed')
       }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Open the slides in the GIF tool as frames, at full size, for an animated version. */
+  const makeAnimation = async () => {
+    if (!hasImages || busy) return
+    setBusy(true)
+    try {
+      const pad = Math.max(2, String(doc.count).length)
+      const frames: GifFrame[] = []
+      for (let i = 0; i < doc.count; i++) {
+        const id = crypto.randomUUID()
+        await registerBlob(id, await toBlob(renderSlide(doc, i), 'png'))
+        frames.push({
+          id: crypto.randomUUID(),
+          name: `Slide ${String(i + 1).padStart(pad, '0')}`,
+          imageId: id,
+          naturalWidth: doc.slideW,
+          naturalHeight: doc.slideH,
+        })
+      }
+      // The GIF tool's size slider stops at 1920; otherwise keep the slides' own size.
+      handOffFrames({ frames, maxSize: Math.min(1920, Math.max(doc.slideW, doc.slideH)) })
+      void navigate({ to: '/gif' })
+    } catch (e) {
+      console.error(e)
+      say('Could not make the slides into frames')
     } finally {
       setBusy(false)
     }
@@ -435,7 +484,7 @@ export function StitcherEditor() {
 
   const onPaste = useEffectEvent((e: ClipboardEvent) => {
     if (isTypingTarget(e.target)) return
-    const files = imageFiles(e.clipboardData?.files)
+    const files = listFiles(e.clipboardData?.files)
     if (files.length) {
       e.preventDefault()
       void addFiles(files)
@@ -456,7 +505,7 @@ export function StitcherEditor() {
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
     setDragging(false)
-    const files = imageFiles(e.dataTransfer.files)
+    const files = listFiles(e.dataTransfer.files)
     if (files.length) void addFiles(files)
   }
 
@@ -466,11 +515,24 @@ export function StitcherEditor() {
     <CarouselControls
       doc={doc}
       exportFormat={exportFormat}
+      jpegQuality={jpegQuality}
       onCount={(n) => patchDoc((d) => setSlideCount(d, n), 'count')}
       onFormat={(slideW, slideH) => patchDoc((d) => relayout(d, { ...d, slideW, slideH }))}
       onBackground={(background) => patchDoc((d) => ({ ...d, background }), 'background')}
       onGrid={(gridCols, gridRows) => patchDoc((d) => ({ ...d, gridCols, gridRows }))}
+      onLightLeaks={(patch, coalesce) =>
+        patchDoc(
+          // Leaks turned on for the first time get their own places, not the default seed's.
+          (d) => ({ ...d, lightLeaks: { ...(d.lightLeaks ?? { ...DEFAULT_LIGHT_LEAKS, seed: newLeakSeed() }), ...patch } }),
+          coalesce,
+        )
+      }
+      onShuffleLeaks={() =>
+        patchDoc((d) => ({ ...d, lightLeaks: { ...(d.lightLeaks ?? DEFAULT_LIGHT_LEAKS), seed: newLeakSeed() } }))
+      }
       onExportFormat={setExportFormat}
+      onJpegQuality={setJpegQuality}
+      onMakeAnimation={hasImages ? () => void makeAnimation() : undefined}
       onSplitFile={(f) => void splitFile(f)}
       onAddFiles={(f) => void addFiles(f)}
     />
@@ -514,6 +576,7 @@ export function StitcherEditor() {
           ? () => patchDoc((d) => ({ ...d, layers: d.layers.map((l) => ({ ...l, look: selected.look })) }))
           : undefined
       }
+      onDateStampOn={() => void stampSelected()}
       onForward={() => patchDoc((d) => moveLayer(d, selected.id, 1))}
       onBackward={() => patchDoc((d) => moveLayer(d, selected.id, -1))}
       onDelete={deleteSelected}
@@ -613,10 +676,10 @@ export function StitcherEditor() {
                 Choose a photo
                 <input
                   type="file"
-                  accept="image/*"
+                  accept={IMAGE_ACCEPT}
                   className="visually-hidden"
                   onChange={(e) => {
-                    const files = imageFiles(e.target.files)
+                    const files = listFiles(e.target.files)
                     if (files.length) void addFiles(files)
                     e.target.value = ''
                   }}

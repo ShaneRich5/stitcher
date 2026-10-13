@@ -15,8 +15,9 @@ import {
   setFrameDuration,
   type GifDoc,
 } from '../lib/gif-doc'
+import { clearHandoff, peekHandoff } from '../lib/handoff'
 import { getImage } from '../lib/image-registry'
-import { imageFiles, loadImageFile } from '../lib/load-image'
+import { IMAGE_ACCEPT, listFiles, loadImageFiles } from '../lib/load-image'
 import { useMediaQuery } from '../lib/use-media-query'
 import type { GifFrame } from '../types'
 import { AppNav } from './app-nav'
@@ -58,8 +59,15 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable
 }
 
+/** A new doc, holding any frames another tool handed over (e.g. carousel slides). */
+function initialDoc(): GifDoc {
+  const handoff = peekHandoff()
+  const doc = createGifDoc()
+  return handoff ? { ...doc, frames: handoff.frames, maxSize: handoff.maxSize } : doc
+}
+
 export function GifMaker() {
-  const [doc, setDoc] = useState<GifDoc>(createGifDoc)
+  const [doc, setDoc] = useState<GifDoc>(initialDoc)
   const [frameIndex, setFrameIndex] = useState(0)
   const [playing, setPlaying] = useState(true)
   const [dockTab, setDockTab] = useState<'loop' | 'export'>('loop')
@@ -84,6 +92,9 @@ export function GifMaker() {
 
   const patch = (next: Partial<GifDoc>) => setDoc((d) => ({ ...d, ...next }))
 
+  // The doc has taken any handed-over frames, so a later visit starts fresh.
+  useEffect(() => clearHandoff(), [])
+
   useEffect(() => {
     try {
       localStorage.setItem(VIEW_KEY, view)
@@ -107,10 +118,8 @@ export function GifMaker() {
   }, [playing, count, activeIndex, doc])
 
   const addFiles = async (files: File[]) => {
-    const results = await Promise.allSettled(files.map(loadImageFile))
-    const loaded = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
-    const failed = results.length - loaded.length
-    if (failed) say(`Could not open ${failed} file${failed > 1 ? 's' : ''}`)
+    const { images: loaded, message } = await loadImageFiles(files)
+    if (message) say(message)
     if (!loaded.length) return
     const frames: GifFrame[] = loaded.map((img) => ({
       id: crypto.randomUUID(),
@@ -190,7 +199,7 @@ export function GifMaker() {
 
   const onPaste = useEffectEvent((e: ClipboardEvent) => {
     if (isTypingTarget(e.target)) return
-    const files = imageFiles(e.clipboardData?.files)
+    const files = listFiles(e.clipboardData?.files)
     if (files.length) {
       e.preventDefault()
       void addFiles(files)
@@ -211,7 +220,7 @@ export function GifMaker() {
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
     setDragging(false)
-    const files = imageFiles(e.dataTransfer.files)
+    const files = listFiles(e.dataTransfer.files)
     if (files.length) void addFiles(files)
   }
 
@@ -278,11 +287,11 @@ export function GifMaker() {
                 Choose photos
                 <input
                   type="file"
-                  accept="image/*"
+                  accept={IMAGE_ACCEPT}
                   multiple
                   className="visually-hidden"
                   onChange={(e) => {
-                    const files = imageFiles(e.target.files)
+                    const files = listFiles(e.target.files)
                     if (files.length) void addFiles(files)
                     e.target.value = ''
                   }}

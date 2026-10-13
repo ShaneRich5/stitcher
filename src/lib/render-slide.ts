@@ -1,14 +1,21 @@
+import { totalWidth } from './carousel'
 import { drawLayerContent } from './layer-effects'
+import { drawLightLeaks } from './light-leaks'
 import type { CarouselDoc, Layer } from '../types'
 
 /** `pxPerWorld` is canvas pixels per world pixel, which effects like shadows need. */
-export function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer, pxPerWorld = 1) {
+export function drawLayer(
+  ctx: CanvasRenderingContext2D,
+  layer: Layer,
+  pxPerWorld = 1,
+  row?: { width: number; height: number },
+) {
   ctx.save()
   ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2)
   if (layer.rotation) ctx.rotate((layer.rotation * Math.PI) / 180)
   if (layer.flipX) ctx.scale(-1, 1)
   ctx.translate(-layer.width / 2, -layer.height / 2)
-  drawLayerContent(ctx, layer, pxPerWorld)
+  drawLayerContent(ctx, layer, pxPerWorld, { row })
   ctx.restore()
 }
 
@@ -37,6 +44,8 @@ export function renderSlide(
   ctx.imageSmoothingQuality = 'high'
   ctx.scale(canvas.width / doc.slideW, canvas.height / doc.slideH)
   ctx.translate(-index * doc.slideW, 0)
-  for (const layer of doc.layers) drawLayer(ctx, layer, canvas.width / doc.slideW)
+  const row = { width: totalWidth(doc), height: doc.slideH }
+  for (const layer of doc.layers) drawLayer(ctx, layer, canvas.width / doc.slideW, row)
+  drawLightLeaks(ctx, doc)
   return canvas
 }

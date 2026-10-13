@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { CollageDoc } from '../lib/collage'
 import type { VideoExportFormat } from '../lib/encode-video'
-import { imageFiles } from '../lib/load-image'
+import { IMAGE_ACCEPT, listFiles } from '../lib/load-image'
 import { FORMAT_PRESETS, GIF_BACKGROUNDS } from '../lib/platform-presets'
 import { Icon } from './icons'
 
@@ -181,12 +181,12 @@ export function CollageControls({ doc, section = 'bar', onPatch, onAddFiles }: P
       <input
         ref={addRef}
         type="file"
-        accept="image/*"
+        accept={IMAGE_ACCEPT}
         multiple
         className="visually-hidden"
         tabIndex={-1}
         onChange={(e) => {
-          const files = imageFiles(e.target.files)
+          const files = listFiles(e.target.files)
           if (files.length) onAddFiles(files)
           e.target.value = ''
         }}

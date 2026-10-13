@@ -334,3 +334,18 @@ export function moveLayer(doc: CarouselDoc, id: string, dir: -1 | 1): CarouselDo
   layers.splice(j, 0, item!)
   return { ...doc, layers }
 }
+
+/** Instagram's profile grid shows each post's first slide cropped to 3:4, centred. */
+export const PROFILE_GRID_RATIO = 3 / 4
+
+/** The part of a slide the profile grid shows, or null when the slide is already 3:4. */
+export function profileGridCrop(doc: Pick<CarouselDoc, 'slideW' | 'slideH'>): Box | null {
+  const ratio = doc.slideW / doc.slideH
+  if (Math.abs(ratio - PROFILE_GRID_RATIO) < 0.005) return null
+  if (ratio > PROFILE_GRID_RATIO) {
+    const width = doc.slideH * PROFILE_GRID_RATIO
+    return { x: (doc.slideW - width) / 2, y: 0, width, height: doc.slideH }
+  }
+  const height = doc.slideW / PROFILE_GRID_RATIO
+  return { x: 0, y: (doc.slideH - height) / 2, width: doc.slideW, height }
+}

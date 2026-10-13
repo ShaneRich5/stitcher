@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import type { CollageDoc } from '../lib/collage'
 import { getImage } from '../lib/image-registry'
-import { imageFiles } from '../lib/load-image'
+import { IMAGE_ACCEPT, listFiles } from '../lib/load-image'
 import { Icon } from './icons'
 
 type Props = {
@@ -135,12 +135,12 @@ export function CollageStrip({
           <input
             ref={addRef}
             type="file"
-            accept="image/*"
+            accept={IMAGE_ACCEPT}
             multiple
             className="visually-hidden"
             tabIndex={-1}
             onChange={(e) => {
-              const files = imageFiles(e.target.files)
+              const files = listFiles(e.target.files)
               if (files.length) onAddFiles(files)
               e.target.value = ''
             }}

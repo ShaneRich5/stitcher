@@ -19,9 +19,11 @@ The landing page at `/` links to each tool.
 
 - One row of equal-size **slides**. Images live in a shared space, so a single photo can span
   several slides.
-- **Split a photo**: pick a slide count (2 to 20) and a format (4:5, 1:1, 3:4, 9:16, 1.91:1); the
-  photo is spread evenly across every slide. Changing either afterwards re-fits it.
+- **Split a photo**: pick a slide count (2 to 20) and a format (4:5, 1:1, 3:4, 2:3, 9:16, 16:9,
+  1.91:1); the photo is spread evenly across every slide. Changing either afterwards re-fits it.
 - **Add images**: drop, paste or pick several. Each lands on its own slide and can be moved anywhere.
+  HEIC photos from an iPhone are converted on your device, and any file that can't be opened says
+  why.
 - Per-image toolbar: Fill / Fit / Free, zoom, rotate (slider or 90 degrees), flip, aspect lock,
   layer order, duplicate (Ctrl/Cmd+D), replace, delete. Drag, resize and rotate on the canvas;
   arrow keys nudge.
@@ -30,7 +32,7 @@ The landing page at `/` links to each tool.
   trimmed to the subject without moving it. When a photo has several subjects, **Choose subject**
   lets you tap the one to keep (Shift-click or long-press takes a part away) before cutting it out.
 - **Effects** per image: an outline and a drop shadow that follow a cutout's edge (the sticker
-  look), and blur.
+  look), blur, and a **date stamp**: the orange point-and-shoot date, read from the photo itself.
 - **Look** per image: eight film looks with a strength, grain and a vignette, plus brightness,
   contrast, saturation and warmth. **Apply to all photos** gives the whole carousel one look, so
   photos from different phones and days read as one set.
@@ -40,13 +42,20 @@ The landing page at `/` links to each tool.
   post is seen one slide at a time. **Nudge** moves the photo just enough to clear them.
 - **Snapping** to slide edges, centers and grid-cut lines.
 - **Background** swatches or a custom color, or transparent.
+- **Light leaks** under "Style": warm light bleeding across the seams between slides, so it carries
+  on as the post is swiped. Shuffle moves them.
+- **Zoom and pan**: Ctrl/Cmd + scroll or pinch to zoom (up to 400%), hold Space and drag to pan,
+  and **Fit** to go back. Tab through the layers from the keyboard; Enter opens the selected one's
+  toolbar.
+- **Profile grid** shading shows what Instagram's grid will crop from your first slide.
 - **Grid cut**: slice each slide into up to 4 x 4 cells (for profile-grid posts).
 - **Swipe preview** shows the slides the way a feed pages through them.
 - Undo/redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y).
 - **Autosaves** to your browser, so a reload or a closed tab doesn't lose your work. Nothing
   leaves your device.
-- **Export** PNG or JPEG as one ZIP, or a single file for one slide. On phones the Save button opens
-  the share sheet (Save to Photos).
+- **Export** PNG or JPEG (with a quality slider) as one ZIP, or a single file for one slide. On
+  phones the Save button opens the share sheet (Save to Photos). **Make a GIF or video** opens the
+  slides in the GIF tool as frames.
 - Phone layout uses a bottom dock with Carousel and Image tabs.
 
 ### GIF (`/gif`)
@@ -100,6 +109,7 @@ npm run dev       # http://localhost:5173
 npm run build     # type-check + production build to dist/
 npm run preview   # serve the production build
 npm run lint
+npm test          # Vitest unit tests (src/lib/*.test.ts)
 ```
 
 Every push to `main` deploys to GitHub Pages through `.github/workflows/`.

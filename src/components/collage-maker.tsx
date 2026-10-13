@@ -12,7 +12,7 @@ import {
   type CollageDoc,
 } from '../lib/collage'
 import { downloadBlob } from '../lib/download'
-import { imageFiles, loadImageFile } from '../lib/load-image'
+import { IMAGE_ACCEPT, listFiles, loadImageFiles } from '../lib/load-image'
 import { removeBackground } from '../lib/remove-background'
 import { useMediaQuery } from '../lib/use-media-query'
 import type { CollageItem } from '../types'
@@ -132,10 +132,8 @@ export function CollageMaker() {
   }
 
   const addFiles = async (files: File[]) => {
-    const results = await Promise.allSettled(files.map(loadImageFile))
-    const loaded = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
-    const failed = results.length - loaded.length
-    if (failed) say(`Could not open ${failed} file${failed > 1 ? 's' : ''}`)
+    const { images: loaded, message } = await loadImageFiles(files)
+    if (message) say(message)
     if (!loaded.length) return
     const items: CollageItem[] = loaded.map((img) => ({
       id: crypto.randomUUID(),
@@ -214,7 +212,7 @@ export function CollageMaker() {
 
   const onPaste = useEffectEvent((e: ClipboardEvent) => {
     if (isTypingTarget(e.target)) return
-    const files = imageFiles(e.clipboardData?.files)
+    const files = listFiles(e.clipboardData?.files)
     if (files.length) {
       e.preventDefault()
       void addFiles(files)
@@ -235,7 +233,7 @@ export function CollageMaker() {
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
     setDragging(false)
-    const files = imageFiles(e.dataTransfer.files)
+    const files = listFiles(e.dataTransfer.files)
     if (files.length) void addFiles(files)
   }
 
@@ -307,11 +305,11 @@ export function CollageMaker() {
                 Choose photos
                 <input
                   type="file"
-                  accept="image/*"
+                  accept={IMAGE_ACCEPT}
                   multiple
                   className="visually-hidden"
                   onChange={(e) => {
-                    const files = imageFiles(e.target.files)
+                    const files = listFiles(e.target.files)
                     if (files.length) void addFiles(files)
                     e.target.value = ''
                   }}

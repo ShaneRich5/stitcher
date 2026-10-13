@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { profileGridCrop } from '../lib/carousel'
 import { renderSlide } from '../lib/render-slide'
 import type { CarouselDoc } from '../types'
 import { Icon } from './icons'
@@ -107,6 +108,13 @@ export function SwipePreview({ doc, startIndex, onClose }: Props) {
             <span key={i} className={i === index ? 'on' : ''} />
           ))}
         </div>
+        {profileGridCrop(doc) && slides[0] ? (
+          <figure className="preview-profile">
+            {/* The grid shows a centred 3:4 crop of the cover, which object-fit: cover matches. */}
+            <img src={slides[0]} alt="The first slide as your profile grid shows it" draggable={false} />
+            <figcaption>On your profile grid</figcaption>
+          </figure>
+        ) : null}
       </div>
     </div>
   )

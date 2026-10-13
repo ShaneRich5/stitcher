@@ -42,12 +42,12 @@ below link to their issue once one exists.
 | Collage grid templates | ✅ (mostly Premium) | ❌ |
 | Borders, spacing, corner radius | ✅ | ❌ |
 | Filters / adjustments | ✅ | Blur, brightness, contrast, saturation, warmth |
-| Film looks (grain, vignette, one look for the whole post) | ❌ | ✅ (8 presets) |
-| Video in carousel | ✅ (Premium) | ❌ (GIF tool only) |
+| Film looks (grain, vignette, one look for the whole post) | ❌ | ✅ (8 presets, light leaks across seams, date stamp) |
+| Video in carousel | ✅ (Premium) | ❌ (slides can open in the GIF tool as frames) |
 | Swipe preview | ✅ | ✅ |
 | Share to social | ✅ | Share sheet on phones (Save to Photos); ZIP download on desktop |
 | Save / reopen projects | ✅ | ✅ (autosaved locally; no explicit save/open UI yet) |
-| Platform presets | IG-centric | 5 formats: 4:5, 1:1, 3:4, 9:16, 1.91:1 |
+| Platform presets | IG-centric | 7 formats: 4:5, 1:1, 3:4, 2:3, 9:16, 16:9, 1.91:1 |
 | GIF / MP4 from frames | ❌ | ✅ |
 | Profile-grid slicing | partial | ✅ (up to 4 × 4 per slide) |
 | Free, no account, no watermark | ❌ | ✅ |
@@ -87,13 +87,19 @@ Done:
   choice is remembered in `localStorage`. Design directions compared first on a
   [mockup canvas](https://claude.ai/artifact/HnCXt4uu7hudouewqa1EFN).
 
+- [x] `.cursorrules` now matches the architecture: the doc is the source of truth, plain CSS, local
+  persistence allowed, the React Compiler rules and `commit` with `coalesce`.
+  ([#3](https://github.com/ShaneRich5/stitcher/issues/3))
+- [x] Vitest unit tests (`npm test`, run in the deploy workflow before the build) for the carousel
+  maths, snapping, undo history, file intake, light leaks and the date stamp.
+  ([#4](https://github.com/ShaneRich5/stitcher/issues/4))
+- [x] One `fitContain` / `drawFrame` in `lib/draw-frame.ts`, shared by the encoders.
+  ([#13](https://github.com/ShaneRich5/stitcher/issues/13))
+
 Open:
 
 - [ ] Autosave doesn't cover the GIF tool yet — its frames are still lost on reload or switching
   tools. Same pattern as #1, scoped to `GifDoc`.
-- [ ] Bring `.cursorrules` in line with the current architecture. ([#3](https://github.com/ShaneRich5/stitcher/issues/3))
-- [ ] Vitest unit tests for the carousel maths, snapping and undo history. ([#4](https://github.com/ShaneRich5/stitcher/issues/4))
-- [ ] Merge the duplicated `fitContain` / `drawFrame` helpers in the encoders. ([#13](https://github.com/ShaneRich5/stitcher/issues/13))
 
 ## Phase 1: core editor parity (makes a free SCRL substitute)
 
@@ -107,18 +113,19 @@ Open:
    ([#17](https://github.com/ShaneRich5/stitcher/issues/17)).
 6. **Slide management**: up to 20 slides and add/remove from the slide strip are done. Still to
    do: insert a slide between two others, and duplicate a slide.
-7. **Faster input**: drag and drop and clipboard paste are done. Still to do:
-   - canvas zoom and pan, with a "Fit" button ([#8](https://github.com/ShaneRich5/stitcher/issues/8))
-   - selecting layers from the keyboard ([#9](https://github.com/ShaneRich5/stitcher/issues/9))
-   - HEIC photos and files with no MIME type ([#5](https://github.com/ShaneRich5/stitcher/issues/5))
-8. **Previews**: the swipe preview is done. Next is an Instagram profile-grid crop overlay, since
-   the grid shows a 3:4 crop of the first slide ([#10](https://github.com/ShaneRich5/stitcher/issues/10)).
-9. **More presets**: 9:16 (TikTok photo mode, Stories) is done. Add Pinterest 2:3 and X/YouTube
-   16:9 ([#7](https://github.com/ShaneRich5/stitcher/issues/7)). LinkedIn carousels are PDF
-   documents, so they need a PDF export rather than a preset.
-10. **Export options**: JPEG export, the Web Share API on phones, and a warning when a stretched
-    photo would export soft ([#18](https://github.com/ShaneRich5/stitcher/issues/18)) are done. Add a
-    JPEG quality slider ([#6](https://github.com/ShaneRich5/stitcher/issues/6)).
+7. ~~**Faster input**~~: done. Drag and drop, clipboard paste, canvas zoom and pan with a "Fit"
+   button ([#8](https://github.com/ShaneRich5/stitcher/issues/8)), selecting layers from the
+   keyboard ([#9](https://github.com/ShaneRich5/stitcher/issues/9)), and HEIC photos and files
+   with no MIME type ([#5](https://github.com/ShaneRich5/stitcher/issues/5)).
+8. ~~**Previews**~~: done. The swipe preview, and an Instagram profile-grid crop overlay, since the
+   grid shows a 3:4 crop of the first slide ([#10](https://github.com/ShaneRich5/stitcher/issues/10)).
+9. ~~**More presets**~~: done. 9:16 (TikTok photo mode, Stories), Pinterest 2:3 and X/YouTube 16:9
+   ([#7](https://github.com/ShaneRich5/stitcher/issues/7)). LinkedIn carousels are PDF documents,
+   so they need a PDF export rather than a preset.
+10. ~~**Export options**~~: done. JPEG export with a quality slider
+    ([#6](https://github.com/ShaneRich5/stitcher/issues/6)), the Web Share API on phones, and a
+    warning when a stretched photo would export soft
+    ([#18](https://github.com/ShaneRich5/stitcher/issues/18)).
 
 ## Phase 2: collage and style
 
@@ -138,10 +145,10 @@ Open:
      done, with eight looks ([#24](https://github.com/ShaneRich5/stitcher/issues/24)). A few
      well-tuned looks beat many weak ones, and they get generic names, not camera or film-stock
      trademarks.
-  2. Light leaks on the seams between slides, the way a leak bleeds across neighbouring frames on
-     a roll, so it carries on as the viewer swipes
+  2. ~~Light leaks on the seams between slides~~: done. A leak bleeds across neighbouring frames
+     on a roll, so it carries on as the viewer swipes
      ([#25](https://github.com/ShaneRich5/stitcher/issues/25)).
-  3. A date stamp from the photo's EXIF date
+  3. ~~A date stamp from the photo's EXIF date~~: done
      ([#26](https://github.com/ShaneRich5/stitcher/issues/26)).
   4. The same looks in the collage and GIF tools, with grain that moves from frame to frame
      ([#27](https://github.com/ShaneRich5/stitcher/issues/27)).
@@ -152,9 +159,9 @@ Open:
 
 ## Phase 3: motion and persistence
 
-- **Send carousel slides to the GIF tool** as frames, for a quick animated version
-  ([#11](https://github.com/ShaneRich5/stitcher/issues/11)). This is the cheap first step toward the
-  panorama video below.
+- ~~**Send carousel slides to the GIF tool**~~: done. "Make a GIF or video" opens the slides as
+  frames, for a quick animated version ([#11](https://github.com/ShaneRich5/stitcher/issues/11)).
+  This is the cheap first step toward the panorama video below.
 - **Video layers** in carousel tiles, exported per slide as MP4 using the Mediabunny pipeline that
   already exists.
 - A **panorama scroll video** that pans across the whole carousel as one Reel. This is a strong
@@ -163,8 +170,6 @@ Open:
   autosave ([#1](https://github.com/ShaneRich5/stitcher/issues/1)). Still to do: export/import a
   `.stitcher` file, for backing up or moving a project between devices, and the same autosave for
   the GIF tool's frames.
-  *Note: `.cursorrules` currently says "no persistence layer", which this autosave already
-  crosses; that rule needs updating ([#3](https://github.com/ShaneRich5/stitcher/issues/3)).*
 - A **PWA** so the app installs and works offline, which covers SCRL's mobile-app use case.
 
 ## Phase 4: native app (Expo)

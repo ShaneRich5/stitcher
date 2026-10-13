@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import { GIFEncoder, applyPalette, quantize } from 'gifenc'
+import { drawFrame } from './draw-frame'
 
 export type GifFrameSource = {
   image: CanvasImageSource
@@ -39,23 +40,6 @@ export type AnimationExportResult = {
   filename: string
 }
 
-function fitContain(
-  srcW: number,
-  srcH: number,
-  boxW: number,
-  boxH: number,
-): { width: number; height: number; x: number; y: number } {
-  const scale = Math.min(boxW / srcW, boxH / srcH)
-  const width = Math.max(1, Math.round(srcW * scale))
-  const height = Math.max(1, Math.round(srcH * scale))
-  return {
-    width,
-    height,
-    x: Math.round((boxW - width) / 2),
-    y: Math.round((boxH - height) / 2),
-  }
-}
-
 function prepareOutputSize(
   frames: GifFrameSource[],
   maxSize: number,
@@ -71,19 +55,6 @@ function prepareOutputSize(
     outW: Math.max(1, Math.round(outW * scale)),
     outH: Math.max(1, Math.round(outH * scale)),
   }
-}
-
-function drawFrame(
-  ctx: CanvasRenderingContext2D,
-  frame: GifFrameSource,
-  outW: number,
-  outH: number,
-  background: string,
-) {
-  ctx.fillStyle = background
-  ctx.fillRect(0, 0, outW, outH)
-  const fit = fitContain(frame.naturalWidth, frame.naturalHeight, outW, outH)
-  ctx.drawImage(frame.image, fit.x, fit.y, fit.width, fit.height)
 }
 
 function canvasToBlob(

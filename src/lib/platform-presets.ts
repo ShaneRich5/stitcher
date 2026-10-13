@@ -8,11 +8,13 @@ export type FormatPreset = {
 
 /** Slide sizes in pixels. Every slide in a carousel shares one format. */
 export const FORMAT_PRESETS: FormatPreset[] = [
-  { id: 'portrait', label: '4:5', hint: 'Portrait: Instagram, LinkedIn', width: 1080, height: 1350 },
-  { id: 'square', label: '1:1', hint: 'Square', width: 1080, height: 1080 },
-  { id: 'grid', label: '3:4', hint: 'Instagram profile grid', width: 1080, height: 1440 },
-  { id: 'story', label: '9:16', hint: 'Stories, Reels, TikTok photos', width: 1080, height: 1920 },
-  { id: 'landscape', label: '1.91:1', hint: 'Landscape', width: 1080, height: 566 },
+  { id: 'portrait', label: '4:5', hint: 'Portrait: Instagram, Threads, Facebook, LinkedIn', width: 1080, height: 1350 },
+  { id: 'square', label: '1:1', hint: 'Square: Instagram, Threads, Facebook, LinkedIn, X', width: 1080, height: 1080 },
+  { id: 'grid', label: '3:4', hint: 'Instagram posts that fill the profile grid', width: 1080, height: 1440 },
+  { id: 'pin', label: '2:3', hint: 'Pinterest pins', width: 1000, height: 1500 },
+  { id: 'story', label: '9:16', hint: 'Stories, Reels, TikTok photos, YouTube Shorts', width: 1080, height: 1920 },
+  { id: 'wide', label: '16:9', hint: 'Widescreen: X, YouTube', width: 1600, height: 900 },
+  { id: 'landscape', label: '1.91:1', hint: 'Landscape: Facebook, LinkedIn', width: 1080, height: 566 },
 ]
 
 export const BACKGROUND_SWATCHES: { label: string; value: string | null }[] = [
