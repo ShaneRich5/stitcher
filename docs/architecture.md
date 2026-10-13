@@ -65,6 +65,7 @@ src/
     draw-frame.ts             fitContain and drawFrame, shared by every encoder
     *.test.ts                 Vitest unit tests for the pure logic (npm test)
   types.ts                    Layer, CarouselDoc, FitMode, GifFrame, CollageItem
+e2e/                          Playwright tests of the built app (npm run test:e2e)
 ```
 
 All three tools share one shell: `AppNav` actions, a `.split-bar` of controls, a `.workspace`, a
@@ -296,5 +297,8 @@ yet; its frames live in component state.
 - No backend, accounts or server-side persistence (see `.cursorrules`); the local IndexedDB
   autosave is fine.
 - `npm test` runs Vitest over the pure logic in `lib/`; the deploy workflow runs it before building.
+- `npm run test:e2e` builds the app, serves it under `/stitcher/` and drives it in Chromium with
+  Playwright. Canvas checks read the stage's pixels: a solid-color photo on white slides tells the
+  exported copy (full color) from the faded one you grab. Pull requests run both suites.
 - DOM-free logic in `lib/` (carousel, snap-guides, export naming) is kept separable so it can
   move to a shared package if an Expo app happens (see the roadmap).
