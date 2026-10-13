@@ -33,7 +33,7 @@ below link to their issue once one exists.
 | Max slides | 20 | 20 |
 | Snapping guides | ✅ | ✅ (while dragging) |
 | Undo/redo | ✅ | ✅ |
-| Layer reorder | drag & drop | forward / back buttons |
+| Layer reorder | drag & drop | drag & drop in Studio's layer panel; forward / back in Quick |
 | Rotate and flip layers | ✅ | ✅ |
 | Crop / mask image inside a frame | ✅ | ❌ |
 | Text layers + fonts | ✅ | ❌ |
@@ -109,8 +109,8 @@ Open:
    shadow. Needs a `type` discriminator on `Layer`.
 3. ~~**Rotation and flip**~~: done, including export.
 4. **Crop / mask**: double-click an image to pan and zoom it inside its own bounds (SCRL "frames").
-5. **Better layer panel**: thumbnails, drag-and-drop reorder, hide and lock. Duplicate is done
-   ([#17](https://github.com/ShaneRich5/stitcher/issues/17)).
+5. ~~**Better layer panel**~~: done in Studio mode, with thumbnails, drag-and-drop reorder, hide
+   and lock. Duplicate is done too ([#17](https://github.com/ShaneRich5/stitcher/issues/17)).
 6. **Slide management**: up to 20 slides and add/remove from the slide strip are done. Still to
    do: insert a slide between two others, and duplicate a slide.
 7. ~~**Faster input**~~: done. Drag and drop, clipboard paste, canvas zoom and pan with a "Fit"

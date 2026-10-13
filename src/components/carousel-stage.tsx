@@ -198,6 +198,8 @@ type Props = {
   /** Pressed empty canvas: the slide under the pointer, or null outside the slides. */
   onBackgroundPress: (slideIndex: number | null) => void
   onLayerChange: (layerId: string, patch: Partial<Layer>) => void
+  /** Studio's pan tool: dragging anywhere moves the view, as holding Space does. */
+  panMode?: boolean
 }
 
 export function CarouselStage({
@@ -210,6 +212,7 @@ export function CarouselStage({
   onSelect,
   onBackgroundPress,
   onLayerChange,
+  panMode = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -250,6 +253,9 @@ export function CarouselStage({
   const gridCrop = profileGrid ? profileGridCrop(doc) : null
 
   const selected = doc.layers.find((l) => l.id === selectedId) ?? null
+  // Hidden layers aren't drawn; locked ones are drawn but let presses through to what's under them.
+  const shown = doc.layers.filter((l) => !l.hidden)
+  const canTransform = selected !== null && !selected.hidden && !selected.locked
   const lockAspect = selected?.lockAspect ?? true
   const rotated = selected ? Math.abs(normalizeDegrees(selected.rotation)) > 0.5 : false
   const pickLayer = picking ? (doc.layers.find((l) => l.id === picking.layerId) ?? null) : null
@@ -283,10 +289,10 @@ export function CarouselStage({
   useEffect(() => {
     const tr = trRef.current
     if (!tr) return
-    const node = selectedId && !isPicking ? tr.getStage()?.findOne(`#layer-${selectedId}`) : undefined
+    const node = canTransform && !isPicking ? tr.getStage()?.findOne(`#layer-${selectedId}`) : undefined
     tr.nodes(node ? [node] : [])
     tr.getLayer()?.batchDraw()
-  }, [selectedId, doc.layers, scale, isPicking])
+  }, [selectedId, canTransform, doc.layers, scale, isPicking])
 
   const pointerWorld = (e: Konva.KonvaEventObject<Event>) => {
     const p = e.target.getStage()?.getPointerPosition()
@@ -444,7 +450,9 @@ export function CarouselStage({
   const onStageKeyDown = (e: ReactKeyboardEvent) => {
     if (e.target !== e.currentTarget || picking || !doc.layers.length) return
     if (e.key === 'Enter' && selectedId) {
-      const first = document.querySelector<HTMLElement>('.image-controls :is(button, input, select, summary)')
+      const first = document.querySelector<HTMLElement>(
+        ':is(.image-controls, .inspector) :is(button, input, select, summary)',
+      )
       if (first) {
         e.preventDefault()
         first.focus()
@@ -604,12 +612,13 @@ export function CarouselStage({
 
                 {/* Faded, interactive copies: what you grab, and the Transformer's target. */}
                 <Group listening={!picking}>
-                  {doc.layers.map((layer) => (
+                  {shown.map((layer) => (
                     <KonvaImage
                       key={`layer-${layer.id}`}
                       id={`layer-${layer.id}`}
                       {...layerNodeProps(layer, scale, false, row)}
                       opacity={OVERFLOW_OPACITY}
+                      listening={!layer.locked}
                       draggable
                       onMouseEnter={(e) => setCursor(e, 'move')}
                       onMouseLeave={(e) => setCursor(e, 'default')}
@@ -646,7 +655,7 @@ export function CarouselStage({
 
                 {/* Full-opacity copies clipped to the slides: what actually gets exported. */}
                 <Group clipFunc={clipSlides} listening={false}>
-                  {doc.layers.map((layer) => (
+                  {shown.map((layer) => (
                     <KonvaImage
                       key={`in-${layer.id}`}
                       id={`in-${layer.id}`}
@@ -837,7 +846,7 @@ export function CarouselStage({
           </Stage>
         </div>
       </div>
-      {spaceHeld || panning ? (
+      {spaceHeld || panMode || panning ? (
         <div
           className={`stage-pan ${panning ? 'is-panning' : ''}`}
           onPointerDown={(e) => {

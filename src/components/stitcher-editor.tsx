@@ -8,6 +8,7 @@ import {
   layerZoom,
   makeLayer,
   moveLayer,
+  moveLayerTo,
   normalizeDegrees,
   relayout,
   removeSlide,
@@ -39,15 +40,19 @@ import { useEditorHistory } from '../lib/use-editor-history'
 import { useMediaQuery } from '../lib/use-media-query'
 import { renderSlide } from '../lib/render-slide'
 import { useSlideThumbnails } from '../lib/use-slide-thumbnails'
-import type { CarouselDoc, FitMode, GifFrame, Layer } from '../types'
+import type { CarouselDoc, FitMode, GifFrame, Layer, LightLeaks } from '../types'
 import { AppNav } from './app-nav'
-import { CarouselControls } from './carousel-controls'
+import { CarouselControls, StyleFields } from './carousel-controls'
 import { CarouselStage } from './carousel-stage'
 import { CarouselWelcome } from './carousel-welcome'
 import { Icon } from './icons'
-import { ImageControls, LayerPicker, SubjectPicker, type ControlsDetail, type CutoutMode } from './image-controls'
+import { LayerPicker, SubjectPicker, type ControlsDetail, type CutoutMode } from './image-controls'
+import { ModeSwitch, type EditorMode } from './mode-switch'
 import { SlideStrip } from './slide-strip'
 import { StartOverDialog } from './start-over-dialog'
+import { LayerControls } from './studio-inspector'
+import { LayerChips, LayersPanel, PostPanel } from './studio-layers'
+import { StudioRail, type StudioTool } from './studio-rail'
 import { SwipePreview } from './swipe-preview'
 
 const NUDGE = 4
@@ -56,6 +61,7 @@ const PORTRAIT_BLUR = 16
 /** Faces are looked for this long after the images settle, so loading photos comes first. */
 const FACE_CHECK_DELAY = 800
 const DETAIL_KEY = 'stitcher.carousel.controls'
+const MODE_KEY = 'stitcher.carousel.mode'
 
 /** Remembering the bar's size is a convenience, so a browser that blocks storage gets compact. */
 function readStoredDetail(): ControlsDetail {
@@ -63,6 +69,15 @@ function readStoredDetail(): ControlsDetail {
     return localStorage.getItem(DETAIL_KEY) === 'detailed' ? 'detailed' : 'compact'
   } catch {
     return 'compact'
+  }
+}
+
+/** Quick is the default; Studio is remembered once picked. */
+function readStoredMode(): EditorMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'studio' ? 'studio' : 'quick'
+  } catch {
+    return 'quick'
   }
 }
 
@@ -95,6 +110,8 @@ export function StitcherEditor() {
   const [activeSlideRaw, setActiveSlide] = useState(0)
   const [dockTab, setDockTab] = useState<'carousel' | 'image'>('carousel')
   const [detail, setDetail] = useState<ControlsDetail>(readStoredDetail)
+  const [mode, setMode] = useState<EditorMode>(readStoredMode)
+  const [tool, setTool] = useState<StudioTool>('select')
   const [exportFormat, setExportFormat] = useState<ImageFormat>('png')
   /** An export setting, like the format, so it stays out of the doc and its undo history. */
   const [jpegQuality, setJpegQuality] = useState(DEFAULT_JPEG_QUALITY)
@@ -124,6 +141,7 @@ export function StitcherEditor() {
   const hasImages = doc.layers.length > 0
   // Until the autosave is restored it isn't known whether there's work, so neither view shows.
   const welcome = hydrated && !hasImages
+  const studio = mode === 'studio'
   const showImageTab = isPhone && selected !== null && dockTab === 'image'
   // Picking ends by itself if its layer is deselected, deleted or given another photo.
   const activePick =
@@ -156,10 +174,11 @@ export function StitcherEditor() {
   useEffect(() => {
     try {
       localStorage.setItem(DETAIL_KEY, detail)
+      localStorage.setItem(MODE_KEY, mode)
     } catch {
       // A browser that blocks storage just won't remember the choice.
     }
-  }, [detail])
+  }, [detail, mode])
 
   useEffect(() => {
     window.addEventListener('pagehide', flushSave)
@@ -492,6 +511,10 @@ export function StitcherEditor() {
       }
       return
     }
+    if (studio && !mod && (key === 'v' || key === 'h')) {
+      setTool(key === 'v' ? 'select' : 'pan')
+      return
+    }
     if (mod && key === 'z') {
       e.preventDefault()
       if (e.shiftKey) redo()
@@ -506,7 +529,7 @@ export function StitcherEditor() {
     } else if (selected && (e.key === 'Delete' || e.key === 'Backspace')) {
       e.preventDefault()
       deleteSelected()
-    } else if (selected && e.key.startsWith('Arrow') && !mod) {
+    } else if (selected && !selected.locked && e.key.startsWith('Arrow') && !mod) {
       e.preventDefault()
       const step = e.shiftKey ? NUDGE * 5 : NUDGE
       const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
@@ -546,82 +569,151 @@ export function StitcherEditor() {
 
   const setFit = (fit: FitMode) => selected && patchLayer(selected.id, (d, l) => resetToFit(d, l, fit))
 
+  const onCount = (n: number) => patchDoc((d) => setSlideCount(d, n), 'count')
+  const onFormat = (slideW: number, slideH: number) => patchDoc((d) => relayout(d, { ...d, slideW, slideH }))
+  const styleProps = {
+    doc,
+    exportFormat,
+    jpegQuality,
+    onBackground: (background: string | null) => patchDoc((d) => ({ ...d, background }), 'background'),
+    onGrid: (gridCols: number, gridRows: number) => patchDoc((d) => ({ ...d, gridCols, gridRows })),
+    onLightLeaks: (patch: Partial<LightLeaks>, coalesce?: string) =>
+      patchDoc(
+        // Leaks turned on for the first time get their own places, not the default seed's.
+        (d) => ({ ...d, lightLeaks: { ...(d.lightLeaks ?? { ...DEFAULT_LIGHT_LEAKS, seed: newLeakSeed() }), ...patch } }),
+        coalesce,
+      ),
+    onShuffleLeaks: () =>
+      patchDoc((d) => ({ ...d, lightLeaks: { ...(d.lightLeaks ?? DEFAULT_LIGHT_LEAKS), seed: newLeakSeed() } })),
+    onExportFormat: setExportFormat,
+    onJpegQuality: setJpegQuality,
+    onMakeAnimation: hasImages ? () => void makeAnimation() : undefined,
+  }
+
   const carouselControls = (
     <CarouselControls
-      doc={doc}
-      exportFormat={exportFormat}
-      jpegQuality={jpegQuality}
-      onCount={(n) => patchDoc((d) => setSlideCount(d, n), 'count')}
-      onFormat={(slideW, slideH) => patchDoc((d) => relayout(d, { ...d, slideW, slideH }))}
-      onBackground={(background) => patchDoc((d) => ({ ...d, background }), 'background')}
-      onGrid={(gridCols, gridRows) => patchDoc((d) => ({ ...d, gridCols, gridRows }))}
-      onLightLeaks={(patch, coalesce) =>
-        patchDoc(
-          // Leaks turned on for the first time get their own places, not the default seed's.
-          (d) => ({ ...d, lightLeaks: { ...(d.lightLeaks ?? { ...DEFAULT_LIGHT_LEAKS, seed: newLeakSeed() }), ...patch } }),
-          coalesce,
-        )
-      }
-      onShuffleLeaks={() =>
-        patchDoc((d) => ({ ...d, lightLeaks: { ...(d.lightLeaks ?? DEFAULT_LIGHT_LEAKS), seed: newLeakSeed() } }))
-      }
-      onExportFormat={setExportFormat}
-      onJpegQuality={setJpegQuality}
-      onMakeAnimation={hasImages ? () => void makeAnimation() : undefined}
+      {...styleProps}
+      onCount={onCount}
+      onFormat={onFormat}
       onSplitFile={(f) => void splitFile(f)}
       onAddFiles={(f) => void addFiles(f)}
       onStartOver={hasImages ? () => setStartOverOpen(true) : undefined}
     />
   )
 
-  const imageControls = activePick ? (
-    <SubjectPicker
-      variant={isPhone ? 'sheet' : 'toolbar'}
-      status={pickerStatus ?? (activePick.working ? 'Finding the subject…' : null)}
-      points={activePick.points.length}
-      canConfirm={activePick.choice !== null && !activePick.working}
-      onUndo={undoPickPoint}
-      onCancel={cancelPicking}
-      onConfirm={(mode) => void confirmPick(mode)}
+  const toggleLayerFlag = (id: string, flag: 'hidden' | 'locked') =>
+    patchLayer(id, (_, l) => ({ ...l, [flag]: l[flag] ? undefined : true }))
+
+  /** The selected layer's controls: Quick's toolbar or Studio's inspector, with the same actions. */
+  const layerControls = (where: 'quick' | 'studio') =>
+    selected ? (
+      <LayerControls
+        studio={where === 'studio'}
+        phone={isPhone}
+        layer={selected}
+        zoom={layerZoom(doc, selected)}
+        onFit={setFit}
+        onZoom={(z) => patchLayer(selected.id, (d, l) => zoomLayer(d, l, z), `zoom-${selected.id}`)}
+        onRotate={(deg) =>
+          patchLayer(selected.id, (_, l) => ({ ...l, rotation: normalizeDegrees(deg) }), `rotate-${selected.id}`)
+        }
+        onRotate90={() => patchLayer(selected.id, (_, l) => ({ ...l, rotation: normalizeDegrees(l.rotation + 90) }))}
+        onFlip={() => patchLayer(selected.id, (_, l) => ({ ...l, flipX: !l.flipX }))}
+        onToggleLock={() => patchLayer(selected.id, (_, l) => ({ ...l, lockAspect: !l.lockAspect }))}
+        onReplace={(f) => void replaceFile(f)}
+        onDuplicate={duplicateSelected}
+        onCutout={(mode) => void cutOutSelected(mode)}
+        onChooseSubject={() => void startPicking()}
+        removingBackground={cutoutStatus !== null}
+        facesOnEdge={selectedFacesOnEdge}
+        onNudge={nudgeSelected}
+        onEffects={(patch, coalesce) =>
+          patchLayer(selected.id, (_, l) => ({ ...l, ...patch }), coalesce && `${coalesce}-${selected.id}`)
+        }
+        onLookToAll={
+          doc.layers.length > 1
+            ? () => patchDoc((d) => ({ ...d, layers: d.layers.map((l) => ({ ...l, look: selected.look })) }))
+            : undefined
+        }
+        onDateStampOn={() => void stampSelected()}
+        onForward={() => patchDoc((d) => moveLayer(d, selected.id, 1))}
+        onBackward={() => patchDoc((d) => moveLayer(d, selected.id, -1))}
+        onDelete={deleteSelected}
+        detail={detail}
+        onDetail={setDetail}
+        layers={doc.layers}
+        onSelectLayer={select}
+        onBox={(patch) => patchLayer(selected.id, (_, l) => ({ ...l, ...patch }), `box-${selected.id}`)}
+        onToggleHidden={() => toggleLayerFlag(selected.id, 'hidden')}
+        onToggleLocked={() => toggleLayerFlag(selected.id, 'locked')}
+      />
+    ) : null
+
+  const subjectPicker = (variant: 'toolbar' | 'sheet') =>
+    activePick ? (
+      <SubjectPicker
+        variant={variant}
+        status={pickerStatus ?? (activePick.working ? 'Finding the subject…' : null)}
+        points={activePick.points.length}
+        canConfirm={activePick.choice !== null && !activePick.working}
+        onUndo={undoPickPoint}
+        onCancel={cancelPicking}
+        onConfirm={(mode) => void confirmPick(mode)}
+      />
+    ) : null
+
+  const imageControls = subjectPicker(isPhone ? 'sheet' : 'toolbar') ?? layerControls('quick')
+
+  // Studio: the inspector for the selected layer, or the carousel's own settings when none is.
+  const studioPanel =
+    subjectPicker('sheet') ??
+    layerControls('studio') ?? (
+      <div className={`inspector is-${isPhone ? 'sheet' : 'panel'}`} role="region" aria-label="Carousel settings">
+        <div className="inspector-head">
+          <span className="inspector-title">
+            <strong>Carousel</strong>
+            <span>
+              {doc.count} {doc.count === 1 ? 'slide' : 'slides'} · {doc.slideW} × {doc.slideH}
+            </span>
+          </span>
+        </div>
+        {isPhone ? <PostPanel doc={doc} onCount={onCount} onFormat={onFormat} /> : null}
+        <div className="inspector-fields inspector-style">
+          <StyleFields {...styleProps} />
+        </div>
+        {isPhone && hasImages ? (
+          <button type="button" className="btn btn-quiet inspector-start-over" onClick={() => setStartOverOpen(true)}>
+            <Icon name="restart" size={16} />
+            Start over
+          </button>
+        ) : null}
+      </div>
+    )
+
+  const stage = (
+    <CarouselStage
+      doc={doc}
+      selectedId={selectedId}
+      activeSlide={activeSlide}
+      faces={faces}
+      picking={
+        activePick
+          ? { layerId: activePick.layerId, points: activePick.points, overlay: activePick.choice?.overlay ?? null }
+          : null
+      }
+      onPick={addPickPoint}
+      onSelect={select}
+      onBackgroundPress={(i) => {
+        setSelectedId(null)
+        if (i !== null) setActiveSlide(i)
+      }}
+      onLayerChange={(id, patch) =>
+        patchLayer(id, (_, l) => ({ ...l, ...patch }), `drag-${id}`)
+      }
+
+      panMode={studio && tool === 'pan'}
     />
-  ) : selected ? (
-    <ImageControls
-      layer={selected}
-      zoom={layerZoom(doc, selected)}
-      variant={isPhone ? 'sheet' : 'toolbar'}
-      detail={detail}
-      onDetail={setDetail}
-      layers={doc.layers}
-      onSelectLayer={select}
-      onFit={setFit}
-      onZoom={(z) => patchLayer(selected.id, (d, l) => zoomLayer(d, l, z), `zoom-${selected.id}`)}
-      onRotate={(deg) =>
-        patchLayer(selected.id, (_, l) => ({ ...l, rotation: normalizeDegrees(deg) }), `rotate-${selected.id}`)
-      }
-      onRotate90={() => patchLayer(selected.id, (_, l) => ({ ...l, rotation: normalizeDegrees(l.rotation + 90) }))}
-      onFlip={() => patchLayer(selected.id, (_, l) => ({ ...l, flipX: !l.flipX }))}
-      onToggleLock={() => patchLayer(selected.id, (_, l) => ({ ...l, lockAspect: !l.lockAspect }))}
-      onReplace={(f) => void replaceFile(f)}
-      onDuplicate={duplicateSelected}
-      onCutout={(mode) => void cutOutSelected(mode)}
-      onChooseSubject={() => void startPicking()}
-      removingBackground={cutoutStatus !== null}
-      facesOnEdge={selectedFacesOnEdge}
-      onNudge={nudgeSelected}
-      onEffects={(patch, coalesce) =>
-        patchLayer(selected.id, (_, l) => ({ ...l, ...patch }), coalesce && `${coalesce}-${selected.id}`)
-      }
-      onLookToAll={
-        doc.layers.length > 1
-          ? () => patchDoc((d) => ({ ...d, layers: d.layers.map((l) => ({ ...l, look: selected.look })) }))
-          : undefined
-      }
-      onDateStampOn={() => void stampSelected()}
-      onForward={() => patchDoc((d) => moveLayer(d, selected.id, 1))}
-      onBackward={() => patchDoc((d) => moveLayer(d, selected.id, -1))}
-      onDelete={deleteSelected}
-    />
-  ) : null
+  )
 
   const navActions = (
     <>
@@ -664,9 +756,38 @@ export function StitcherEditor() {
     </>
   )
 
+  const studioStatus =
+    studio && !isPhone && hasImages ? (
+      <>
+        <span className="save-status" title="Your work is saved in this browser as you go">
+          <Icon name="check" size={14} />
+          Saved on this device
+        </span>
+        <button type="button" className="btn btn-quiet" onClick={() => setStartOverOpen(true)}>
+          <Icon name="restart" size={16} />
+          Start over
+        </button>
+      </>
+    ) : null
+
+  const slideStrip = (
+    <SlideStrip
+      doc={doc}
+      thumbs={thumbs}
+      activeSlide={activeSlide}
+      onSelect={(i) => {
+        setActiveSlide(i)
+        setSelectedId(null)
+        setPicking(null)
+      }}
+      onAdd={() => patchDoc((d) => setSlideCount(d, d.count + 1))}
+      onRemove={(i) => patchDoc((d) => removeSlide(d, i))}
+    />
+  )
+
   return (
     <>
-      <AppNav actions={navActions} />
+      <AppNav actions={navActions} status={studioStatus} center={<ModeSwitch mode={mode} onMode={setMode} />} />
       <div
         className={`editor ${dragging ? 'is-dragging' : ''}`}
         onDragOver={(e) => {
@@ -683,35 +804,44 @@ export function StitcherEditor() {
         {welcome ? (
           <CarouselWelcome
             doc={doc}
-            onCount={(n) => patchDoc((d) => setSlideCount(d, n), 'count')}
-            onFormat={(slideW, slideH) => patchDoc((d) => relayout(d, { ...d, slideW, slideH }))}
+            onCount={onCount}
+            onFormat={onFormat}
             onFiles={(f) => void addFiles(f)}
           />
+        ) : studio && isPhone ? (
+          <div className="studio is-phone">
+            <div className="workspace studio-canvas">{stage}</div>
+            <LayerChips doc={doc} selectedId={selectedId} onSelect={select} />
+            <div className="studio-sheet">{studioPanel}</div>
+          </div>
+        ) : studio ? (
+          <div className="studio">
+            <StudioRail tool={tool} onTool={setTool} onAddFiles={(f) => void addFiles(f)} />
+            <aside className="studio-side" aria-label="Layers and post">
+              <LayersPanel
+                doc={doc}
+                selectedId={selectedId}
+                onSelect={select}
+                onReorder={(id, index) => patchDoc((d) => moveLayerTo(d, id, index))}
+                onToggleHidden={(id) => toggleLayerFlag(id, 'hidden')}
+                onToggleLocked={(id) => toggleLayerFlag(id, 'locked')}
+              />
+              <PostPanel doc={doc} onCount={onCount} onFormat={onFormat} />
+            </aside>
+            <div className="studio-center">
+              <div className="workspace">{stage}</div>
+              {slideStrip}
+            </div>
+            <aside className="studio-inspector" aria-label="Inspector">
+              {studioPanel}
+            </aside>
+          </div>
         ) : (
           <>
             {isPhone ? null : <div className="split-bar">{carouselControls}</div>}
 
             <div className="workspace">
-              <CarouselStage
-                doc={doc}
-                selectedId={selectedId}
-                activeSlide={activeSlide}
-                faces={faces}
-                picking={
-                  activePick
-                    ? { layerId: activePick.layerId, points: activePick.points, overlay: activePick.choice?.overlay ?? null }
-                    : null
-                }
-                onPick={addPickPoint}
-                onSelect={select}
-                onBackgroundPress={(i) => {
-                  setSelectedId(null)
-                  if (i !== null) setActiveSlide(i)
-                }}
-                onLayerChange={(id, patch) =>
-                  patchLayer(id, (_, l) => ({ ...l, ...patch }), `drag-${id}`)
-                }
-              />
+              {stage}
             </div>
 
             {/* Desktop: the image controls get a row of their own under the canvas, so they never
@@ -727,18 +857,7 @@ export function StitcherEditor() {
               </div>
             )}
 
-            <SlideStrip
-              doc={doc}
-              thumbs={thumbs}
-              activeSlide={activeSlide}
-              onSelect={(i) => {
-                setActiveSlide(i)
-                setSelectedId(null)
-                setPicking(null)
-              }}
-              onAdd={() => patchDoc((d) => setSlideCount(d, d.count + 1))}
-              onRemove={(i) => patchDoc((d) => removeSlide(d, i))}
-            />
+            {slideStrip}
 
             {isPhone ? (
               <div className="dock">

@@ -335,6 +335,17 @@ export function moveLayer(doc: CarouselDoc, id: string, dir: -1 | 1): CarouselDo
   return { ...doc, layers }
 }
 
+/** Move a layer to `index` in the stack (0 is the bottom), as dragging it in a layer list does. */
+export function moveLayerTo(doc: CarouselDoc, id: string, index: number): CarouselDoc {
+  const i = doc.layers.findIndex((l) => l.id === id)
+  const j = Math.max(0, Math.min(doc.layers.length - 1, index))
+  if (i < 0 || i === j) return doc
+  const layers = [...doc.layers]
+  const [item] = layers.splice(i, 1)
+  layers.splice(j, 0, item!)
+  return { ...doc, layers }
+}
+
 /** Instagram's profile grid shows each post's first slide cropped to 3:4, centred. */
 export const PROFILE_GRID_RATIO = 3 / 4
 

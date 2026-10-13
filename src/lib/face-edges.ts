@@ -41,8 +41,9 @@ function onEdge(doc: CarouselDoc, face: Box): boolean {
 /** Every face a slide edge splits, in every layer. */
 export function facesOnEdges(doc: CarouselDoc, faces: FaceMap): FaceMark[] {
   if (doc.count < 2) return []
+  // A hidden layer won't be posted, so its faces can't be cut.
   return doc.layers.flatMap((layer) =>
-    layerFaces(layer, faces)
+    (layer.hidden ? [] : layerFaces(layer, faces))
       .filter((box) => onEdge(doc, box))
       .map((box) => ({ layerId: layer.id, box })),
   )

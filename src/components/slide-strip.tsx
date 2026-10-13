@@ -15,7 +15,7 @@ type Props = {
 function lowResNotes(doc: CarouselDoc): (string | null)[] {
   const notes: string[][] = Array.from({ length: doc.count }, () => [])
   for (const layer of doc.layers) {
-    if (!isLowRes(layer)) continue
+    if (layer.hidden || !isLowRes(layer)) continue
     for (const i of layerSlides(doc, layer)) notes[i]!.push(`${layer.name} (${layerUpscale(layer).toFixed(1)}×)`)
   }
   return notes.map((n) => (n.length ? `Low resolution: ${n.join(', ')} will look soft here` : null))
