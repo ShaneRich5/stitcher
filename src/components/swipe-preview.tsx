@@ -66,6 +66,8 @@ export function SwipePreview({ doc, startIndex, onClose }: Props) {
           className={`preview-viewport ${doc.background ? '' : 'is-transparent'}`}
           style={{ aspectRatio: `${doc.slideW} / ${doc.slideH}` }}
           onPointerDown={(e) => {
+            // Capturing the pointer would send the arrows' click to the viewport instead.
+            if ((e.target as HTMLElement).closest('.preview-nav')) return
             startX.current = e.clientX
             setDragX(0)
             e.currentTarget.setPointerCapture(e.pointerId)

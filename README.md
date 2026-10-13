@@ -113,10 +113,16 @@ npm run preview   # serve the production build
 npm run lint
 npm test          # Vitest unit tests (src/lib/*.test.ts)
 npm run test:e2e  # Playwright end-to-end tests (e2e/) against the production build
+npm run demo      # record the walkthroughs in e2e/demos/ to demo-videos/*.webm
 ```
 
 The first time, install the browser the end-to-end tests drive with `npx playwright install chromium`.
-Pull requests run both test suites through `.github/workflows/test.yml`.
+Pull requests run both test suites through `.github/workflows/test.yml`; the demos never run there.
+
+To watch the tests or a demo instead of reading results, add `--headed --workers=1` (a browser
+window) or `--ui` (Playwright's step-by-step viewer), e.g. `npm run demo -- --ui`. Each run builds
+the app and serves it on port 4173, so a run fails if something else is already using that port.
+The demo videos are `.webm`; `ffmpeg -i in.webm out.mp4` converts one for sharing.
 
 Every push to `main` deploys to GitHub Pages through `.github/workflows/`.
 
