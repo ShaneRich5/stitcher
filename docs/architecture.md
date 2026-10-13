@@ -66,6 +66,8 @@ src/
     *.test.ts                 Vitest unit tests for the pure logic (npm test)
   types.ts                    Layer, CarouselDoc, FitMode, GifFrame, CollageItem
 e2e/                          Playwright tests of the built app (npm run test:e2e)
+  support/                    Stage helpers shared by tests and demos; serve.mjs builds and serves
+  demos/                      Recorded walkthroughs, not checks (npm run demo -> demo-videos/)
 ```
 
 All three tools share one shell: `AppNav` actions, a `.split-bar` of controls, a `.workspace`, a
@@ -300,5 +302,9 @@ yet; its frames live in component state.
 - `npm run test:e2e` builds the app, serves it under `/stitcher/` and drives it in Chromium with
   Playwright. Canvas checks read the stage's pixels: a solid-color photo on white slides tells the
   exported copy (full color) from the faded one you grab. Pull requests run both suites.
+- `npm run demo` records the walkthroughs in `e2e/demos/` (Playwright's `demo` project) to
+  `demo-videos/<title>.webm`. They draw a cursor and captions, since Playwright's videos have
+  neither, use photos drawn in the page, and still assert each step so a broken flow fails rather
+  than recording quietly. They're kept out of `test:e2e` and CI because they're slow.
 - DOM-free logic in `lib/` (carousel, snap-guides, export naming) is kept separable so it can
   move to a shared package if an Expo app happens (see the roadmap).

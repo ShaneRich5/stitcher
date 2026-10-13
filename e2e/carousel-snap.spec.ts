@@ -1,14 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
+import { layerBox, SLIDE_H, SLIDE_W, toPage, type Box } from './support/carousel'
 
 // Carousel snapping and resizing, checked on what the stage actually draws. The photo is solid
 // red on the white slides, so a pixel says whether the full-opacity (exported) copy covers it:
 // red is covered, pink is only the faded copy you grab, white is nothing.
-
-type Box = { x: number; y: number; width: number; height: number }
-
-const SLIDE_W = 1080
-const SLIDE_H = 1350
-const COUNT = 3
 
 /** A solid red PNG, made in the page so the tests need no image files. */
 async function redPhoto(page: Page, width: number, height: number) {
@@ -25,24 +20,6 @@ async function redPhoto(page: Page, width: number, height: number) {
     [width, height],
   )
   return { name: 'red.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1]!, 'base64') }
-}
-
-/** World pixels to page pixels: the stage shows the row of slides plus a pad of max(96, 8%) all round. */
-async function toPage(page: Page, wx: number, wy: number) {
-  const canvas = (await page.locator('.stage-canvas canvas').first().boundingBox())!
-  const padX = Math.max(96, Math.round(SLIDE_W * 0.08))
-  const padY = Math.max(96, Math.round(SLIDE_H * 0.08))
-  return {
-    x: canvas.x + ((wx + padX) * canvas.width) / (SLIDE_W * COUNT + padX * 2),
-    y: canvas.y + ((wy + padY) * canvas.height) / (SLIDE_H + padY * 2),
-  }
-}
-
-/** The selected layer's box, from Studio's inspector. */
-async function layerBox(page: Page): Promise<Box> {
-  const field = async (label: string) =>
-    Number(await page.locator('.num-field', { hasText: new RegExp(`^${label}`) }).locator('input').inputValue())
-  return { x: await field('X'), y: await field('Y'), width: await field('W'), height: await field('H') }
 }
 
 /** Press at one world point and drag to another in small steps, as a hand would. */
