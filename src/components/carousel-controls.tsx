@@ -26,6 +26,8 @@ type Props = {
   onMakeAnimation?: () => void
   onSplitFile: (file: File) => void
   onAddFiles: (files: File[]) => void
+  /** Clear the carousel, after asking. Left out while it's empty. */
+  onStartOver?: () => void
 }
 
 const GRID_OPTIONS = [1, 2, 3, 4]
@@ -46,6 +48,7 @@ export function CarouselControls({
   onMakeAnimation,
   onSplitFile,
   onAddFiles,
+  onStartOver,
 }: Props) {
   const splitRef = useRef<HTMLInputElement>(null)
   const addRef = useRef<HTMLInputElement>(null)
@@ -309,6 +312,13 @@ export function CarouselControls({
             </fieldset>
           </div>
         </details>
+
+        {onStartOver ? (
+          <button type="button" className="btn btn-quiet" onClick={onStartOver}>
+            <Icon name="restart" size={16} />
+            Start over
+          </button>
+        ) : null}
       </div>
     </div>
   )
