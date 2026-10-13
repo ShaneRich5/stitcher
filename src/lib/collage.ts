@@ -242,3 +242,52 @@ export function drawCollageFrame(ctx: CanvasRenderingContext2D, doc: CollageDoc,
   }
   ctx.restore()
 }
+
+type Pace = Pick<CollageDoc, 'stepMs' | 'backgroundDelayMs' | 'fadeMs' | 'holdEndMs'>
+
+/** Quick's paces: the four timings together. Steady is the default doc's timing. */
+export const PACE_PRESETS: { id: 'snappy' | 'steady' | 'slow'; label: string; hint: string; pace: Pace }[] = [
+  { id: 'snappy', label: 'Snappy', hint: '0.9 s a photo', pace: { stepMs: 900, backgroundDelayMs: 400, fadeMs: 300, holdEndMs: 1200 } },
+  { id: 'steady', label: 'Steady', hint: '1.5 s a photo', pace: { stepMs: 1500, backgroundDelayMs: 700, fadeMs: 450, holdEndMs: 1500 } },
+  { id: 'slow', label: 'Slow reveal', hint: '2.4 s a photo', pace: { stepMs: 2400, backgroundDelayMs: 1100, fadeMs: 700, holdEndMs: 2000 } },
+]
+
+export type PaceId = (typeof PACE_PRESETS)[number]['id']
+
+/** The Quick pace the doc's timing matches, or null once it's been tuned in Studio. */
+export function pacePresetFor(doc: CollageDoc): PaceId | null {
+  return (
+    PACE_PRESETS.find(
+      ({ pace }) =>
+        pace.stepMs === doc.stepMs &&
+        pace.backgroundDelayMs === doc.backgroundDelayMs &&
+        pace.fadeMs === doc.fadeMs &&
+        pace.holdEndMs === doc.holdEndMs,
+    )?.id ?? null
+  )
+}
+
+/** When one photo's subject and background come in, and when the next background has covered it. */
+export type ItemSchedule = { subjectInMs: number; backgroundInMs: number; coveredMs: number }
+
+/**
+ * Each item's moments, for drawing the sequence: its subject starts to fade in, its photo starts
+ * to fade in behind, and the next photo is fully in on top of it (the end, for the last one).
+ */
+export function itemSchedule(doc: CollageDoc): ItemSchedule[] {
+  const end = collageDurationMs(doc)
+  return doc.items.map((_, i) => ({
+    subjectInMs: itemStartMs(doc, i),
+    backgroundInMs: itemStartMs(doc, i) + doc.backgroundDelayMs,
+    coveredMs: i < doc.items.length - 1 ? itemSettledMs(doc, i + 1) : end,
+  }))
+}
+
+export type CutoutState = 'ready' | 'cutting' | 'waiting' | 'failed'
+
+/** Where an item's cutout is up to; `cuttingId` is the one the queue is working on now. */
+export function cutoutState(item: CollageItem, cuttingId: string | null): CutoutState {
+  if (item.cutoutId) return 'ready'
+  if (item.failed) return 'failed'
+  return item.id === cuttingId ? 'cutting' : 'waiting'
+}

@@ -170,3 +170,68 @@ export function duplicateFrame(doc: GifDoc, id: string): GifDoc {
   frames.splice(i + 1, 0, copy)
   return { ...doc, frames }
 }
+
+/** Quick's speeds: a name for the frame rates people reach for most. Studio has every rate. */
+export const SPEED_PRESETS = [
+  { id: 'slow', label: 'Slow', hint: '1 fps, a slideshow', fps: 1 },
+  { id: 'steady', label: 'Steady', hint: '2.5 fps, the default', fps: 2.5 },
+  { id: 'lively', label: 'Lively', hint: '5 fps, a quick flick', fps: 5 },
+  { id: 'fast', label: 'Fast', hint: '10 fps, near video', fps: 10 },
+] as const
+
+export type SpeedPresetId = (typeof SPEED_PRESETS)[number]['id']
+
+/** The Quick speed the shared delay matches, or null for a rate picked in Studio. */
+export function speedPresetFor(delayMs: number): SpeedPresetId | null {
+  return SPEED_PRESETS.find((p) => delayFromFps(p.fps) === clampDelay(delayMs))?.id ?? null
+}
+
+type Size = { naturalWidth: number; naturalHeight: number }
+
+/**
+ * The export's size: a box big enough for the largest frame each way, scaled down so its long
+ * edge is at most `maxSize`. Every encoder letterboxes the frames into this.
+ */
+export function outputSize(frames: Size[], maxSize: number): { width: number; height: number } {
+  let w = 0
+  let h = 0
+  for (const f of frames) {
+    w = Math.max(w, f.naturalWidth)
+    h = Math.max(h, f.naturalHeight)
+  }
+  const scale = Math.min(1, maxSize / Math.max(w, h, 1))
+  return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) }
+}
+
+/** Frames whose shape differs from the output's by more than 1%, so they show bars of background. */
+export function letterboxedFrames(doc: GifDoc): GifFrame[] {
+  const out = outputSize(doc.frames, doc.maxSize)
+  const ratio = out.width / out.height
+  return doc.frames.filter((f) => Math.abs(f.naturalWidth / Math.max(1, f.naturalHeight) / ratio - 1) > 0.01)
+}
+
+/** Above this, a frame is stretched enough to look soft. */
+const SOFT_UPSCALE = 1.25
+
+/** Frames drawn bigger than their own pixels by more than a quarter: smaller photos among larger ones. */
+export function softFrames(doc: GifDoc): GifFrame[] {
+  const out = outputSize(doc.frames, doc.maxSize)
+  return doc.frames.filter(
+    (f) => Math.min(out.width / Math.max(1, f.naturalWidth), out.height / Math.max(1, f.naturalHeight)) > SOFT_UPSCALE,
+  )
+}
+
+/** Every export format; `primary` ones are offered in Quick, the rest only in Studio. */
+export const ANIMATION_FORMATS: {
+  value: AnimationExportFormat
+  label: string
+  short: string
+  hint: string
+  primary: boolean
+}[] = [
+  { value: 'mp4', label: 'MP4', short: 'Reels', hint: 'H.264 video, best for Reels and feed video', primary: true },
+  { value: 'gif', label: 'GIF', short: 'posts, chats', hint: 'Animated .gif, works in Instagram posts', primary: true },
+  { value: 'webm', label: 'WebM', short: 'web video', hint: 'Web video; less common on social', primary: false },
+  { value: 'png-zip', label: 'PNG frames', short: 'lossless stills', hint: 'Lossless stills, one file per frame', primary: false },
+  { value: 'jpeg-zip', label: 'JPEG frames', short: 'smaller stills', hint: 'Smaller stills for uploading separately', primary: false },
+]

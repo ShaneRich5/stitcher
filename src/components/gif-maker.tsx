@@ -1,14 +1,18 @@
 import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'react'
 import { downloadBlob } from '../lib/download'
 import { exportAnimation, type AnimationExportFormat } from '../lib/encode-gif'
+import { fitContain } from '../lib/draw-frame'
 import {
   applyDurationToAll,
   clearFrameDuration,
   createGifDoc,
   duplicateFrame,
+  fpsLabel,
   frameDurations,
+  frameStarts,
   hasCustomTiming,
   loopDurationMs,
+  outputSize,
   playbackDurations,
   removeFrame,
   reorderFrames,
@@ -17,18 +21,28 @@ import {
 } from '../lib/gif-doc'
 import { clearHandoff, peekHandoff } from '../lib/handoff'
 import { getImage } from '../lib/image-registry'
-import { IMAGE_ACCEPT, listFiles, loadImageFiles } from '../lib/load-image'
+import { listFiles, loadImageFiles } from '../lib/load-image'
+import { useElementSize } from '../lib/use-element-size'
 import { useMediaQuery } from '../lib/use-media-query'
+import { useStoredMode } from '../lib/use-stored-mode'
 import type { GifFrame } from '../types'
 import { AppNav } from './app-nav'
 import { FrameStrip } from './frame-strip'
 import { FrameTimeline } from './frame-timeline'
-import { GifControls } from './gif-controls'
+import { GifInspector } from './gif-inspector'
+import { GifQuick } from './gif-quick'
+import { GifScreen } from './gif-screen'
 import { Icon } from './icons'
+import { ModeSwitch } from './mode-switch'
+import { StartOverDialog } from './start-over-dialog'
+import { StudioRail } from './studio-rail'
 
 type FrameView = 'strip' | 'timeline'
 
 const VIEW_KEY = 'stitcher.gif.view'
+const MODE_KEY = 'stitcher.gif.mode'
+/** Room around the frame on Studio's canvas, for its label and some air. */
+const CANVAS_PAD = 48
 
 /** Remembering the view is a convenience, so a browser that blocks storage just gets the default. */
 function readStoredView(): FrameView {
@@ -70,19 +84,23 @@ export function GifMaker() {
   const [doc, setDoc] = useState<GifDoc>(initialDoc)
   const [frameIndex, setFrameIndex] = useState(0)
   const [playing, setPlaying] = useState(true)
-  const [dockTab, setDockTab] = useState<'loop' | 'export'>('loop')
+  const [mode, setMode] = useStoredMode(MODE_KEY)
+  const [startOverOpen, setStartOverOpen] = useState(false)
   const [view, setView] = useState<FrameView>(readStoredView)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const noticeTimer = useRef<number | undefined>(undefined)
+  const [canvasRef, canvasBox] = useElementSize()
   const isPhone = useMediaQuery('(max-width: 820px)')
+  const studio = mode === 'studio'
 
   const count = doc.frames.length
   const activeIndex = count ? Math.min(frameIndex, count - 1) : 0
   const active: GifFrame | null = doc.frames[activeIndex] ?? null
   const hasFrames = count > 0
   const customTiming = hasCustomTiming(doc)
+  const out = outputSize(doc.frames, doc.maxSize)
 
   const say = (message: string) => {
     setNotice(message)
@@ -151,6 +169,13 @@ export function GifMaker() {
     if (count < 2) return
     setPlaying(false)
     setFrameIndex((i) => (Math.min(i, count - 1) + dir + count) % count)
+  }
+
+  const startOver = () => {
+    setStartOverOpen(false)
+    setDoc(createGifDoc())
+    setFrameIndex(0)
+    setPlaying(true)
   }
 
   const runExport = async () => {
@@ -224,15 +249,6 @@ export function GifMaker() {
     if (files.length) void addFiles(files)
   }
 
-  const controls = (section: 'bar' | 'loop' | 'export') => (
-    <GifControls
-      doc={doc}
-      section={section}
-      onPatch={patch}
-      onAddFiles={(files) => void addFiles(files)}
-    />
-  )
-
   const navActions = (
     <>
       <span className="nav-readout">
@@ -250,9 +266,199 @@ export function GifMaker() {
     </>
   )
 
+  const reorderable = {
+    onSelect: selectFrame,
+    onAddFiles: (files: File[]) => void addFiles(files),
+    onRemove: removeAt,
+    onDuplicate: (id: string) => setDoc((d) => duplicateFrame(d, id)),
+    onReorder: reorder,
+  }
+  const setHold = (id: string, ms: number) => setDoc((d) => setFrameDuration(d, id, ms))
+  const follow = (id: string) => setDoc((d) => clearFrameDuration(d, id))
+
+  const inspector = (
+    <GifInspector
+      variant={isPhone ? 'sheet' : 'panel'}
+      doc={doc}
+      activeIndex={activeIndex}
+      onPatch={patch}
+      onHold={setHold}
+      onFollow={follow}
+      onApplyToAll={(ms) => setDoc((d) => applyDurationToAll(d, ms))}
+      onDuplicate={reorderable.onDuplicate}
+      onRemove={removeAt}
+      onShow={selectFrame}
+    />
+  )
+
+  const frames =
+    view === 'timeline' && !isPhone ? (
+      <FrameTimeline
+        doc={doc}
+        activeIndex={activeIndex}
+        playing={playing}
+        head={false}
+        {...reorderable}
+        onDuration={setHold}
+        onResetDuration={follow}
+        onApplyToAll={(ms) => setDoc((d) => applyDurationToAll(d, ms))}
+      />
+    ) : (
+      <FrameStrip doc={doc} activeIndex={activeIndex} head={false} {...reorderable} />
+    )
+
+  const sequence = (
+    <section className="sequence" aria-label="Frames">
+      <div className="sequence-head">
+        <div className="sequence-transport" role="toolbar" aria-label="Playback">
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Previous frame"
+            title="Previous frame (←)"
+            disabled={count < 2}
+            onClick={() => step(-1)}
+          >
+            <Icon name="chevron-left" size={16} />
+          </button>
+          <button
+            type="button"
+            className="sequence-play"
+            aria-label={playing ? 'Pause' : 'Play'}
+            title={playing ? 'Pause (space)' : 'Play (space)'}
+            disabled={count < 2}
+            onClick={() => setPlaying((p) => !p)}
+          >
+            <Icon name={playing ? 'pause' : 'play'} size={16} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Next frame"
+            title="Next frame (→)"
+            disabled={count < 2}
+            onClick={() => step(1)}
+          >
+            <Icon name="chevron-right" size={16} />
+          </button>
+        </div>
+        <span className="sequence-time">
+          {((frameStarts(doc)[activeIndex] ?? 0) / 1000).toFixed(2)} s <span>/ {(loopDurationMs(doc) / 1000).toFixed(2)} s</span>
+        </span>
+        <span className="sequence-summary">
+          {count} {count === 1 ? 'frame' : 'frames'} · {fpsLabel(doc.delayMs)} ·{' '}
+          {doc.loopOnce && doc.format === 'gif' ? 'plays once' : 'loops'}
+        </span>
+        {isPhone ? null : (
+          <>
+            <span className="sequence-hint">
+              {view === 'timeline'
+                ? 'Drag a frame to reorder it, or its right edge to hold it longer'
+                : customTiming
+                  ? 'Some frames have their own timing. The timeline shows it'
+                  : 'Drag a frame to reorder it'}
+            </span>
+            <div className="segmented sequence-views" role="group" aria-label="Frame view">
+              <button
+                type="button"
+                className={`seg-btn ${view === 'strip' ? 'on' : ''}`}
+                aria-pressed={view === 'strip'}
+                title="Thumbnails in playback order"
+                onClick={() => setView('strip')}
+              >
+                Strip
+              </button>
+              <button
+                type="button"
+                className={`seg-btn ${view === 'timeline' ? 'on' : ''}`}
+                aria-pressed={view === 'timeline'}
+                title="Frames sized by how long they hold"
+                onClick={() => setView('timeline')}
+              >
+                Timeline
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {frames}
+    </section>
+  )
+
+  const screen = fitContain(
+    out.width,
+    out.height,
+    Math.max(1, canvasBox.width - CANVAS_PAD * 2),
+    Math.max(1, canvasBox.height - CANVAS_PAD * 2),
+  )
+  const canvas = (
+    <div className="workspace studio-preview" ref={canvasRef}>
+      {active ? (
+        <>
+          <span className="stage-chip">
+            <strong>
+              Frame {activeIndex + 1} of {count}
+            </strong>
+            <span>
+              {out.width} × {out.height}
+            </span>
+          </span>
+          {canvasBox.width > 0 ? (
+            <div className="studio-preview-frame">
+              <GifScreen
+                frame={active}
+                out={out}
+                background={doc.background}
+                width={screen.width}
+                height={screen.height}
+                label={`Frame ${activeIndex + 1} of ${count}: ${active.name}`}
+              />
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div className="empty-state">
+          <Icon name="film" size={28} />
+          <h2>Turn a series of photos into a loop</h2>
+          <p>Drop images here, paste them, or add them from the tools on the left.</p>
+        </div>
+      )}
+    </div>
+  )
+
+  const quick = (
+    <GifQuick
+      doc={doc}
+      activeIndex={activeIndex}
+      playing={playing}
+      onTogglePlay={() => setPlaying((p) => !p)}
+      onSelect={selectFrame}
+      onReorder={reorder}
+      onAddFiles={reorderable.onAddFiles}
+      onPatch={patch}
+      onHold={setHold}
+      onFollow={follow}
+      onDuplicate={reorderable.onDuplicate}
+      onRemove={removeAt}
+      onStudio={() => {
+        setMode('studio')
+        setView('timeline')
+      }}
+      onStartOver={() => setStartOverOpen(true)}
+    />
+  )
+
+  const studioStatus =
+    studio && !isPhone && hasFrames ? (
+      <button type="button" className="btn btn-quiet" onClick={() => setStartOverOpen(true)}>
+        <Icon name="restart" size={16} />
+        Start over
+      </button>
+    ) : null
+
   return (
     <>
-      <AppNav actions={navActions} />
+      <AppNav actions={navActions} status={studioStatus} center={<ModeSwitch mode={mode} onMode={setMode} />} />
       <div
         className={`editor ${dragging ? 'is-dragging' : ''}`}
         onDragOver={(e) => {
@@ -266,163 +472,33 @@ export function GifMaker() {
         }}
         onDrop={onDrop}
       >
-        {isPhone ? null : <div className="split-bar">{controls('bar')}</div>}
-
-        <div className="workspace">
-          {active ? (
-            <div className="gif-stage" style={{ background: doc.background }}>
-              <img className="gif-stage-img" src={getImage(active.imageId)?.url} alt={active.name} />
-            </div>
-          ) : null}
-
-          {!hasFrames ? (
-            <div className="empty-state">
-              <Icon name="film" size={28} />
-              <h2>Turn a series of photos into a loop</h2>
-              <p>
-                Drop images here, paste them, or pick them below. They play in order as a GIF or a
-                video — all encoded on your device.
-              </p>
-              <label className="btn btn-primary">
-                Choose photos
-                <input
-                  type="file"
-                  accept={IMAGE_ACCEPT}
-                  multiple
-                  className="visually-hidden"
-                  onChange={(e) => {
-                    const files = listFiles(e.target.files)
-                    if (files.length) void addFiles(files)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-            </div>
-          ) : null}
-
-          {hasFrames ? (
-            <div className="playback-bar" role="toolbar" aria-label="Playback">
-              <button
-                type="button"
-                className="tool-btn"
-                aria-label="Previous frame"
-                title="Previous frame (←)"
-                disabled={count < 2}
-                onClick={() => step(-1)}
-              >
-                <Icon name="chevron-left" />
-              </button>
-              <button
-                type="button"
-                className="tool-btn play-btn"
-                aria-label={playing ? 'Pause' : 'Play'}
-                aria-pressed={playing}
-                title={playing ? 'Pause (space)' : 'Play (space)'}
-                disabled={count < 2}
-                onClick={() => setPlaying((p) => !p)}
-              >
-                <Icon name={playing ? 'pause' : 'play'} />
-              </button>
-              <button
-                type="button"
-                className="tool-btn"
-                aria-label="Next frame"
-                title="Next frame (→)"
-                disabled={count < 2}
-                onClick={() => step(1)}
-              >
-                <Icon name="chevron-right" />
-              </button>
-              <span className="playback-count" aria-live="off">
-                {activeIndex + 1} / {count}
-              </span>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="frames-pane">
-          <div className="view-switch" role="group" aria-label="Frame view">
-            <div className="segmented">
-              <button
-                type="button"
-                className={`seg-btn ${view === 'strip' ? 'on' : ''}`}
-                aria-pressed={view === 'strip'}
-                title="Thumbnails in playback order"
-                onClick={() => setView('strip')}
-              >
-                <Icon name="image" size={16} />
-                Strip
-              </button>
-              <button
-                type="button"
-                className={`seg-btn ${view === 'timeline' ? 'on' : ''}`}
-                aria-pressed={view === 'timeline'}
-                title="Frames sized by how long they hold, with per-frame timing"
-                onClick={() => setView('timeline')}
-              >
-                <Icon name="film" size={16} />
-                Timeline
-              </button>
-            </div>
-            {view === 'strip' && customTiming ? (
-              <span className="view-switch-hint">
-                Some frames have their own timing — open the timeline to see it.
-              </span>
-            ) : null}
+        {!studio ? (
+          quick
+        ) : isPhone ? (
+          <div className="studio is-phone">
+            <div className="studio-canvas">{canvas}</div>
+            {hasFrames ? sequence : null}
+            <div className="studio-sheet">{inspector}</div>
           </div>
-
-          {view === 'timeline' ? (
-            <FrameTimeline
-              doc={doc}
-              activeIndex={activeIndex}
-              playing={playing}
-              onSelect={selectFrame}
-              onAddFiles={(files) => void addFiles(files)}
-              onRemove={removeAt}
-              onDuplicate={(id) => setDoc((d) => duplicateFrame(d, id))}
-              onReorder={reorder}
-              onDuration={(id, ms) => setDoc((d) => setFrameDuration(d, id, ms))}
-              onResetDuration={(id) => setDoc((d) => clearFrameDuration(d, id))}
-              onApplyToAll={(ms) => setDoc((d) => applyDurationToAll(d, ms))}
+        ) : (
+          <div className="studio is-wide">
+            <StudioRail
+              addLabel="Add frames"
+              soon={[
+                { icon: 'text', label: 'Text' },
+                { icon: 'shapes', label: 'Shapes and stickers' },
+              ]}
+              onAddFiles={reorderable.onAddFiles}
             />
-          ) : (
-            <FrameStrip
-              doc={doc}
-              activeIndex={activeIndex}
-              onSelect={selectFrame}
-              onAddFiles={(files) => void addFiles(files)}
-              onRemove={removeAt}
-              onDuplicate={(id) => setDoc((d) => duplicateFrame(d, id))}
-              onReorder={reorder}
-            />
-          )}
-        </div>
-
-        {isPhone ? (
-          <div className="dock">
-            <div className="dock-tabs" role="tablist" aria-label="Controls">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dockTab === 'loop'}
-                className={dockTab === 'loop' ? 'on' : ''}
-                onClick={() => setDockTab('loop')}
-              >
-                Loop
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dockTab === 'export'}
-                className={dockTab === 'export' ? 'on' : ''}
-                onClick={() => setDockTab('export')}
-              >
-                Export
-              </button>
+            <div className="studio-center">
+              {canvas}
+              {sequence}
             </div>
-            <div className="dock-body">{controls(dockTab)}</div>
+            <aside className="studio-inspector" aria-label="Inspector">
+              {inspector}
+            </aside>
           </div>
-        ) : null}
+        )}
 
         {dragging ? <div className="drop-overlay">Drop to add frames</div> : null}
         {notice ? (
@@ -431,6 +507,13 @@ export function GifMaker() {
           </div>
         ) : null}
       </div>
+      {startOverOpen ? (
+        <StartOverDialog
+          description={`This removes all ${count} ${count === 1 ? 'frame' : 'frames'} and resets the timing. Stitcher only keeps your work in this browser, so it can't be brought back. Export first if you want to keep it.`}
+          onConfirm={startOver}
+          onCancel={() => setStartOverOpen(false)}
+        />
+      ) : null}
     </>
   )
 }

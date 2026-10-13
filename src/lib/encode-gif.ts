@@ -1,6 +1,7 @@
 import JSZip from 'jszip'
 import { GIFEncoder, applyPalette, quantize } from 'gifenc'
 import { drawFrame } from './draw-frame'
+import { outputSize } from './gif-doc'
 
 export type GifFrameSource = {
   image: CanvasImageSource
@@ -44,17 +45,8 @@ function prepareOutputSize(
   frames: GifFrameSource[],
   maxSize: number,
 ): { outW: number; outH: number } {
-  let outW = 0
-  let outH = 0
-  for (const f of frames) {
-    outW = Math.max(outW, f.naturalWidth)
-    outH = Math.max(outH, f.naturalHeight)
-  }
-  const scale = Math.min(1, maxSize / Math.max(outW, outH, 1))
-  return {
-    outW: Math.max(1, Math.round(outW * scale)),
-    outH: Math.max(1, Math.round(outH * scale)),
-  }
+  const { width, height } = outputSize(frames, maxSize)
+  return { outW: width, outH: height }
 }
 
 function canvasToBlob(

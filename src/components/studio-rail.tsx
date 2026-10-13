@@ -5,44 +5,54 @@ import { Icon, type IconName } from './icons'
 /** Select grabs layers; Pan drags the view, as holding Space does. */
 export type StudioTool = 'select' | 'pan'
 
+type SoonTool = { icon: IconName; label: string }
+
 type Props = {
-  tool: StudioTool
-  onTool: (tool: StudioTool) => void
+  /** Left out for tools with nothing to grab on the canvas, like the GIF and collage previews. */
+  tool?: StudioTool
+  onTool?: (tool: StudioTool) => void
   onAddFiles: (files: File[]) => void
+  /** What the add button says it adds. */
+  addLabel?: string
+  /** Planned tools, shown so people can see what's coming. */
+  soon?: SoonTool[]
 }
 
-/** Planned tools, shown so people can see what's coming. */
-const SOON: { icon: IconName; label: string }[] = [
+const SOON: SoonTool[] = [
   { icon: 'text', label: 'Text' },
   { icon: 'shapes', label: 'Shapes and stickers' },
   { icon: 'templates', label: 'Templates' },
 ]
 
 /** Studio's tool column on the left. */
-export function StudioRail({ tool, onTool, onAddFiles }: Props) {
+export function StudioRail({ tool, onTool, onAddFiles, addLabel = 'Add images', soon = SOON }: Props) {
   const addRef = useRef<HTMLInputElement>(null)
   return (
     <nav className="studio-rail" aria-label="Tools">
-      <button
-        type="button"
-        className="rail-btn"
-        aria-label="Select (V)"
-        title="Select (V)"
-        aria-pressed={tool === 'select'}
-        onClick={() => onTool('select')}
-      >
-        <Icon name="pointer" />
-      </button>
-      <button
-        type="button"
-        className="rail-btn"
-        aria-label="Pan (H)"
-        title="Pan (H), or hold Space"
-        aria-pressed={tool === 'pan'}
-        onClick={() => onTool('pan')}
-      >
-        <Icon name="hand" />
-      </button>
+      {tool && onTool ? (
+        <>
+          <button
+            type="button"
+            className="rail-btn"
+            aria-label="Select (V)"
+            title="Select (V)"
+            aria-pressed={tool === 'select'}
+            onClick={() => onTool('select')}
+          >
+            <Icon name="pointer" />
+          </button>
+          <button
+            type="button"
+            className="rail-btn"
+            aria-label="Pan (H)"
+            title="Pan (H), or hold Space"
+            aria-pressed={tool === 'pan'}
+            onClick={() => onTool('pan')}
+          >
+            <Icon name="hand" />
+          </button>
+        </>
+      ) : null}
       <input
         ref={addRef}
         type="file"
@@ -59,14 +69,14 @@ export function StudioRail({ tool, onTool, onAddFiles }: Props) {
       <button
         type="button"
         className="rail-btn"
-        aria-label="Add images"
-        title="Add images"
+        aria-label={addLabel}
+        title={addLabel}
         onClick={() => addRef.current?.click()}
       >
         <Icon name="image" />
       </button>
       <span className="rail-divider" aria-hidden="true" />
-      {SOON.map((s) => (
+      {soon.map((s) => (
         <button
           key={s.icon}
           type="button"

@@ -45,6 +45,7 @@ export type IconName =
   | 'target'
   | 'look'
   | 'shuffle'
+  | 'reverse'
 
 const PATHS: Record<IconName, ReactNode> = {
   undo: (
@@ -129,6 +130,12 @@ const PATHS: Record<IconName, ReactNode> = {
   'chevron-left': <path d="m15 18-6-6 6-6" />,
   'chevron-right': <path d="m9 18 6-6-6-6" />,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
+  reverse: (
+    <>
+      <path d="M20 7H9a5 5 0 0 0 0 10h3" />
+      <path d="m16 3 4 4-4 4" />
+    </>
+  ),
   bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />,
   sliders: (
     <>

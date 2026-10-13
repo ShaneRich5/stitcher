@@ -12,6 +12,8 @@ type Props = {
   onRemove: (id: string) => void
   onDuplicate: (id: string) => void
   onReorder: (from: number, to: number) => void
+  /** Studio has its own row above it, so it hides the heading. */
+  head?: boolean
 }
 
 /** The frames in playback order. Drag a thumbnail to move it. */
@@ -23,6 +25,7 @@ export function FrameStrip({
   onRemove,
   onDuplicate,
   onReorder,
+  head = true,
 }: Props) {
   const addRef = useRef<HTMLInputElement>(null)
   const dragFrom = useRef<number | null>(null)
@@ -36,14 +39,16 @@ export function FrameStrip({
 
   return (
     <nav className="slide-strip frame-strip" aria-label="Frames">
-      <div className="slide-strip-head">
-        <strong>Your frames</strong>
-        <span>
-          {doc.frames.length
-            ? `Plays ${doc.reverse ? 'right to left' : 'left to right'} — drag to reorder`
-            : 'Add images to build the loop'}
-        </span>
-      </div>
+      {head ? (
+        <div className="slide-strip-head">
+          <strong>Your frames</strong>
+          <span>
+            {doc.frames.length
+              ? `Plays ${doc.reverse ? 'right to left' : 'left to right'} — drag to reorder`
+              : 'Add images to build the loop'}
+          </span>
+        </div>
+      ) : null}
       <ol className="slide-strip-list">
         {doc.frames.map((f, i) => (
           <li

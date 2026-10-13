@@ -4,10 +4,15 @@ import { Icon } from './icons'
 type Props = {
   onConfirm: () => void
   onCancel: () => void
+  /** What starting over throws away. The carousel's wording when left out. */
+  description?: string
 }
 
-/** Asks before clearing the carousel, since the only copy of the work is in this browser. */
-export function StartOverDialog({ onConfirm, onCancel }: Props) {
+const CAROUSEL =
+  "This removes every photo from your carousel and resets the slides. Stitcher only keeps your work in this browser, so it can't be brought back. Export first if you want to keep it."
+
+/** Asks before clearing the work, since the only copy of it is in this browser. */
+export function StartOverDialog({ onConfirm, onCancel, description = CAROUSEL }: Props) {
   const cancelRef = useRef<HTMLButtonElement>(null)
 
   // Focus the safe choice, so a stray Enter keeps the work.
@@ -39,10 +44,7 @@ export function StartOverDialog({ onConfirm, onCancel }: Props) {
           <Icon name="alert" size={22} />
         </span>
         <h2 id="start-over-title">Start over?</h2>
-        <p id="start-over-desc">
-          This removes every photo from your carousel and resets the slides. Stitcher only keeps your work in this
-          browser, so it can't be brought back. Export first if you want to keep it.
-        </p>
+        <p id="start-over-desc">{description}</p>
         <div className="dialog-actions">
           <button ref={cancelRef} type="button" className="btn btn-outline" onClick={onCancel}>
             Keep editing
