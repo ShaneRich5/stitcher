@@ -36,11 +36,15 @@ src/
     collage-photos.tsx        Photo rows with cutout status and retry; drag to reorder
     collage-sequence.tsx      Studio's sequence: a lane per photo (subject in, photo behind, covered)
     collage-inspector.tsx     Studio inspector: timing, motion, overlay, cutout, checks; video fields
+    tool-welcome.tsx          The empty GIF and Collage tools: a landing page, with a way back to the example
+    quick-guide.tsx           A short tour over the example: a card beside each [data-guide] target
   lib/
     carousel.ts               Doc helpers: makeLayer, zoom, relayout, slide add/remove
     gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay, speed presets,
                               output size and the bars / soft frame checks
     handoff.ts                Frames passed between tools in memory (carousel slides -> GIF tool)
+    samples.ts                The GIF and Collage first-visit samples, drawn from assets/samples/*.svg
+    first-use.ts              Whether this browser has been through a tool's example
     collage.ts                CollageDoc helpers, timing, pace presets, the sequence schedule, and
                               drawCollageFrame (preview + export)
     use-element-size.ts, use-stored-mode.ts  A measured element's size; Quick / Studio remembered per tool

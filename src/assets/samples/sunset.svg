@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 500" width="2000" height="500">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0a983"></stop>
+      <stop offset="0.5" stop-color="#f6cfa9"></stop>
+      <stop offset="1" stop-color="#f3e4cc"></stop>
+    </linearGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9aa8cc"></stop>
+      <stop offset="1" stop-color="#6c7aa3"></stop>
+    </linearGradient>
+  </defs>
+  <rect width="2000" height="500" fill="url(#sky)"></rect>
+  <circle cx="1460" cy="200" r="120" fill="#fbe2c2" opacity="0.55"></circle>
+  <circle cx="1460" cy="200" r="64" fill="#fdf0db"></circle>
+  <path d="M260 110 q12 -10 24 0 q12 -10 24 0 M330 150 q9 -8 18 0 q9 -8 18 0 M1700 120 q11 -9 22 0 q11 -9 22 0" fill="none" stroke="#8a6f8f" stroke-width="4" stroke-linecap="round"></path>
+  <path d="M0 300 L120 238 L210 268 L330 186 L450 258 L560 218 L700 280 L820 196 L930 248 L1060 166 L1180 238 L1300 206 L1420 262 L1540 202 L1660 248 L1780 190 L1900 242 L2000 214 L2000 500 L0 500 Z" fill="#c9b5d4"></path>
+  <path d="M1060 166 L1100 196 L1080 194 L1060 210 L1040 192 L1022 196 Z M330 186 L362 212 L344 210 L330 222 L314 208 L300 214 Z M1780 190 L1812 214 L1796 212 L1780 224 L1764 212 L1750 214 Z" fill="#f4ecf4"></path>
+  <path d="M0 340 L90 298 L200 330 L300 276 L420 334 L520 298 L640 350 L760 288 L880 340 L980 308 L1100 356 L1230 298 L1350 344 L1470 314 L1590 360 L1710 302 L1840 350 L1930 318 L2000 338 L2000 500 L0 500 Z" fill="#9d86bd"></path>
+  <path d="M0 392 C150 360 260 402 420 380 S700 350 860 386 S1150 412 1300 380 S1600 350 1760 386 S1950 402 2000 380 L2000 500 L0 500 Z" fill="#5d5f8f"></path>
+  <path d="M70 384 l14 -40 l14 40 z M110 380 l12 -34 l12 34 z M150 386 l16 -46 l16 46 z M1730 382 l14 -40 l14 40 z M1772 386 l17 -48 l17 48 z M1816 384 l12 -34 l12 34 z M1880 388 l15 -44 l15 44 z" fill="#3f4373"></path>
+  <rect x="0" y="414" width="2000" height="86" fill="url(#lake)"></rect>
+  <path d="M1390 430 h140 M1405 446 h110 M1420 462 h80 M1436 478 h48" stroke="#f6dcc0" stroke-width="5" stroke-linecap="round" opacity="0.75"></path>
+  <path d="M0 476 C200 458 380 484 560 470 S900 456 1100 472 S1300 464 1500 476 S1800 462 2000 474 L2000 500 L0 500 Z" fill="#2f3354"></path>
+</svg>

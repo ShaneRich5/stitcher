@@ -12,8 +12,10 @@ import {
   type CollageDoc,
 } from '../lib/collage'
 import { downloadBlob } from '../lib/download'
+import { hasSeenExample, markExampleSeen } from '../lib/first-use'
 import { listFiles, loadImageFiles } from '../lib/load-image'
 import { removeBackground } from '../lib/remove-background'
+import { makeCollageSample } from '../lib/samples'
 import { useMediaQuery } from '../lib/use-media-query'
 import { useStoredMode } from '../lib/use-stored-mode'
 import type { CollageItem } from '../types'
@@ -24,12 +26,39 @@ import { CollageQuick } from './collage-quick'
 import { CollageSequence } from './collage-sequence'
 import { Icon } from './icons'
 import { ModeSwitch } from './mode-switch'
+import { QuickGuide, type GuideStep } from './quick-guide'
 import { StartOverDialog } from './start-over-dialog'
 import { StudioRail } from './studio-rail'
+import { CollageWelcomePreview, ToolWelcome } from './tool-welcome'
 
 /** The preview canvas renders at most this many pixels on its long edge; export is full size. */
 const PREVIEW_MAX = 1280
 const MODE_KEY = 'stitcher.collage.mode'
+
+/** The quick guide over the example, one stop per part of Quick's layout. */
+const GUIDE: GuideStep[] = [
+  {
+    target: 'player',
+    title: 'This is an example',
+    body: 'Five photos of one friend. Each is cut out and stacks on the last, then its photo fades in behind.',
+  },
+  {
+    target: 'photos',
+    title: 'Your photos, in order',
+    body: 'They stack in this order; drag one to move it. The cutouts are made on your device.',
+  },
+  { target: 'pace', title: 'Pick a pace', body: 'How quickly each photo lands. Depth makes each one push in as it arrives.' },
+  {
+    target: 'add',
+    title: 'Now use your own photos',
+    body: 'Add a few photos of the same person and they replace the example.',
+  },
+  {
+    target: 'export',
+    title: 'Export when it looks right',
+    body: 'A video sized for Stories and Reels, made on your device.',
+  },
+]
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -52,6 +81,13 @@ export function CollageMaker() {
   const [startOverOpen, setStartOverOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  /** True while the photos are the sample a first visit opens with; adding photos replaces them. */
+  const [sample, setSample] = useState(false)
+  /** Bumped by anything that changes the photos wholesale, so a sample still loading doesn't land on top. */
+  const sampleRequest = useRef(0)
+  /** True while the sample is being drawn, so the landing page doesn't flash up before it. */
+  const [sampleLoading, setSampleLoading] = useState(() => !hasSeenExample('collage'))
+  const [guide, setGuide] = useState(false)
   const noticeTimer = useRef<number | undefined>(undefined)
   /** Items still waiting for a cutout, processed one at a time by `runCutouts`. */
   const queue = useRef<CollageItem[]>([])
@@ -78,6 +114,48 @@ export function CollageMaker() {
   }
 
   const patch = (next: Partial<CollageDoc>) => setDoc((d) => ({ ...d, ...next }))
+
+  /**
+   * Show the sample photos, cut out already, with the quick guide over them, unless photos have
+   * been added by the time they're drawn.
+   */
+  const loadSample = (width: number, height: number) => {
+    const request = ++sampleRequest.current
+    makeCollageSample(width, height).then(
+      (items) => {
+        if (request !== sampleRequest.current) return
+        setDoc((d) => (d.items.length ? d : { ...d, items }))
+        setSample(true)
+        setGuide(true)
+        setTimeMs(0)
+        setPlaying(true)
+        setSampleLoading(false)
+      },
+      (e) => {
+        console.error(e)
+        setSampleLoading(false)
+      },
+    )
+  }
+
+  /** The landing page's way back to the example. The guide walks Quick's layout, so it switches there. */
+  const showExample = () => {
+    setMode('quick')
+    setSampleLoading(true)
+    loadSample(doc.width, doc.height)
+  }
+
+  const closeGuide = () => {
+    setGuide(false)
+    markExampleSeen('collage')
+  }
+
+  // The first visit opens on the example, playing. After that, an empty tool is the landing page.
+  useEffect(() => {
+    if (sampleLoading) loadSample(doc.width, doc.height)
+    // Only on arrival: later, an empty doc means the photos were removed on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Play the preview in real time and loop it.
   useEffect(() => {
@@ -157,7 +235,19 @@ export function CollageMaker() {
       cutoutId: null,
       failed: false,
     }))
-    setDoc((d) => ({ ...d, items: [...d.items, ...items] }))
+    // Your first photos replace the sample rather than joining it.
+    const replace = sample
+    sampleRequest.current++
+    setSample(false)
+    setGuide(false)
+    setSampleLoading(false)
+    if (replace) markExampleSeen('collage')
+    setDoc((d) => ({ ...d, items: replace ? items : [...d.items, ...items] }))
+    if (replace) {
+      setSelectedId(null)
+      setTimeMs(0)
+      setPlaying(false)
+    }
     queue.current.push(...items)
     void runCutouts()
   }
@@ -184,6 +274,9 @@ export function CollageMaker() {
     setSelectedId(null)
     setTimeMs(0)
     setPlaying(false)
+    setSample(false)
+    setGuide(false)
+    sampleRequest.current++
   }
 
   /** Show the moment photo `index` is complete: its subject and background both in. */
@@ -276,6 +369,7 @@ export function CollageMaker() {
         type="button"
         className="btn btn-primary"
         disabled={!hasItems || exporting || waiting > 0}
+        data-guide="export"
         onClick={() => void runExport()}
       >
         <Icon name="download" />
@@ -360,13 +454,7 @@ export function CollageMaker() {
           </span>
           <div className="collage-stage">{canvas}</div>
         </>
-      ) : (
-        <div className="empty-state">
-          <Icon name="layers" size={28} />
-          <h2>Stack your photos into a video</h2>
-          <p>Drop photos here, paste them, or add them from the tools on the left.</p>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 
@@ -394,7 +482,22 @@ export function CollageMaker() {
         }}
         onDrop={onDrop}
       >
-        {!studio ? (
+        {!hasItems ? (
+          sampleLoading ? null : (
+            <ToolWelcome
+              title="Stack photos into a video."
+              lede="Pick a few photos of the same person. Each one is cut out and stacked on the last, as its photo fades in behind."
+              chooseLabel="Choose photos"
+              onFiles={(files) => void addFiles(files)}
+              onExample={showExample}
+              preview={<CollageWelcomePreview />}
+              others={[
+                { to: '/carousel', label: 'Carousel' },
+                { to: '/gif', label: 'GIF' },
+              ]}
+            />
+          )
+        ) : !studio ? (
           <CollageQuick
             doc={doc}
             canvas={canvas}
@@ -457,6 +560,7 @@ export function CollageMaker() {
           </div>
         )}
 
+        {guide && hasItems ? <QuickGuide label="Collage quick guide" steps={GUIDE} onClose={closeGuide} /> : null}
         {dragging ? <div className="drop-overlay">Drop to add photos</div> : null}
         {cutoutStatus || notice ? (
           <div className="toast" role="status">

@@ -101,7 +101,7 @@ export function GifQuick({
     <div className="quick">
       {pickFiles}
       <div className="quick-chips">
-        <button type="button" className="quick-chip" onClick={() => addRef.current?.click()}>
+        <button type="button" className="quick-chip" data-guide="add" onClick={() => addRef.current?.click()}>
           <Icon name="plus" size={16} />
           Add frames
           {count ? <span className="quick-chip-count">{count}</span> : null}
@@ -167,7 +167,7 @@ export function GifQuick({
                 <GifScreen frame={prev} out={out} background={doc.background} width={ghost.width} height={ghost.height} />
               </div>
             ) : null}
-            <div className="gif-player-current" style={{ width: current.width, height: current.height }}>
+            <div className="gif-player-current" data-guide="player" style={{ width: current.width, height: current.height }}>
               <GifScreen
                 frame={active}
                 out={out}
@@ -253,7 +253,7 @@ export function GifQuick({
           </div>
 
           <div className="quick-dock">
-            <section className="quick-panel" aria-labelledby="speed-heading">
+            <section className="quick-panel" aria-labelledby="speed-heading" data-guide="speed">
               <div className="quick-panel-head">
                 <h2 id="speed-heading">Speed</h2>
                 <span>
@@ -283,7 +283,12 @@ export function GifQuick({
               </div>
             </section>
 
-            <div className="quick-toolbar" role="toolbar" aria-label={`Edit frame ${activeIndex + 1}`}>
+            <div
+              className="quick-toolbar"
+              role="toolbar"
+              aria-label={`Edit frame ${activeIndex + 1}`}
+              data-guide="frame-tools"
+            >
               <span className="quick-toolbar-name">
                 <span className="quick-toolbar-thumb" style={{ background: doc.background }}>
                   <img src={getImage(active.imageId)?.url} alt="" />
@@ -351,19 +356,7 @@ export function GifQuick({
             </div>
           </div>
         </>
-      ) : (
-        <div className="empty-state">
-          <Icon name="film" size={28} />
-          <h2>Turn a series of photos into a loop</h2>
-          <p>
-            Drop images here, paste them, or pick them below. They play in order as a GIF or a video, all encoded
-            on your device.
-          </p>
-          <button type="button" className="btn btn-primary" onClick={() => addRef.current?.click()}>
-            Choose photos
-          </button>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }
