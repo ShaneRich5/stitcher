@@ -1,5 +1,5 @@
 import { useRef, type CSSProperties, type ReactNode } from 'react'
-import { PACE_PRESETS, pacePresetFor, type CollageDoc } from '../lib/collage'
+import { COLLAGE_STYLES, collageStyleFor, PACE_PRESETS, pacePresetFor, type CollageDoc } from '../lib/collage'
 import { IMAGE_ACCEPT, listFiles } from '../lib/load-image'
 import { FORMAT_PRESETS } from '../lib/platform-presets'
 import type { CollageItem } from '../types'
@@ -58,8 +58,12 @@ export function CollageQuick({
   onStartOver,
 }: Props) {
   const addRef = useRef<HTMLInputElement>(null)
+  const styleRef = useRef<HTMLDetailsElement>(null)
   const count = doc.items.length
   const pace = pacePresetFor(doc)
+  const style = COLLAGE_STYLES.find((s) => s.id === collageStyleFor(doc))!
+  /** The overlay, depth and photo fading only mean something when the subjects stack up. */
+  const stack = doc.style === 'stack'
   const index = selected ? doc.items.indexOf(selected) : -1
   const formats = FORMAT_PRESETS.filter(
     (p) => QUICK_FORMATS.includes(p.id) || (p.width === doc.width && p.height === doc.height),
@@ -109,17 +113,43 @@ export function CollageQuick({
             )
           })}
         </div>
-        <label className="quick-chip">
-          <span className="swatch-dot" style={{ background: doc.overlay }} />
-          Overlay
-          <input
-            type="color"
-            className="quick-chip-color"
-            aria-label="Overlay color"
-            value={doc.overlay}
-            onChange={(e) => onPatch({ overlay: e.target.value })}
-          />
-        </label>
+        <details ref={styleRef} className="popover" data-guide="style">
+          <summary className="quick-chip" aria-label={`Style: ${style.label}`}>
+            <Icon name="layers" size={16} />
+            {style.label}
+            <Icon name="chevron-down" size={14} />
+          </summary>
+          <div className="popover-panel style-menu" role="group" aria-label="Style">
+            {COLLAGE_STYLES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="style-option"
+                aria-pressed={s.id === style.id}
+                onClick={() => {
+                  onPatch(s.patch)
+                  if (styleRef.current) styleRef.current.open = false
+                }}
+              >
+                <strong>{s.label}</strong>
+                <span>{s.hint}</span>
+              </button>
+            ))}
+          </div>
+        </details>
+        {stack ? (
+          <label className="quick-chip">
+            <span className="swatch-dot" style={{ background: doc.overlay }} />
+            Overlay
+            <input
+              type="color"
+              className="quick-chip-color"
+              aria-label="Overlay color"
+              value={doc.overlay}
+              onChange={(e) => onPatch({ overlay: e.target.value })}
+            />
+          </label>
+        ) : null}
         {count ? (
           <button type="button" className="btn btn-quiet quick-start-over" onClick={onStartOver}>
             <Icon name="restart" size={16} />
@@ -165,7 +195,7 @@ export function CollageQuick({
               <section className="quick-card" aria-labelledby="photos-heading" data-guide="photos">
                 <div className="quick-card-head">
                   <h2 id="photos-heading">Your photos</h2>
-                  <span>In the order they stack. Drag to reorder.</span>
+                  <span>{stack ? 'In the order they stack.' : 'In the order they play.'} Drag to reorder.</span>
                 </div>
                 {photos}
               </section>
@@ -175,7 +205,7 @@ export function CollageQuick({
                   <h2 id="pace-heading">Pace</h2>
                   <span>{pace ? 'How quickly each photo lands.' : 'Timing set in Studio. Pick one to go back to a preset.'}</span>
                 </div>
-                <div className="quick-tiles is-five">
+                <div className="quick-tiles">
                   {PACE_PRESETS.map((p, i) => (
                     <button key={p.id} type="button" className="quick-tile" aria-pressed={pace === p.id} onClick={() => onPatch(p.pace)}>
                       <span className="quick-tile-art pace-cards" aria-hidden="true" style={{ '--spread': `${SPREAD[i]}px` } as CSSProperties}>
@@ -187,34 +217,22 @@ export function CollageQuick({
                       <span>{p.hint}</span>
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    className="quick-tile"
-                    role="switch"
-                    aria-checked={doc.parallax > 0}
-                    onClick={() => onPatch({ parallax: doc.parallax > 0 ? 0 : DEPTH })}
-                  >
-                    <span className={`quick-tile-art depth-art ${doc.parallax > 0 ? 'is-on' : ''}`} aria-hidden="true">
-                      <span />
-                      <span />
-                    </span>
-                    <strong>Depth {doc.parallax > 0 ? 'on' : 'off'}</strong>
-                    <span>Subjects push in</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="quick-tile"
-                    role="switch"
-                    aria-checked={doc.backgrounds === 'fade'}
-                    onClick={() => onPatch({ backgrounds: doc.backgrounds === 'fade' ? 'stay' : 'fade' })}
-                  >
-                    <span className={`quick-tile-art fade-art ${doc.backgrounds === 'fade' ? 'is-on' : ''}`} aria-hidden="true">
-                      <span />
-                      <span />
-                    </span>
-                    <strong>Fade out {doc.backgrounds === 'fade' ? 'on' : 'off'}</strong>
-                    <span>{doc.backgrounds === 'fade' ? 'Ends on the subjects' : 'Ends on the last photo'}</span>
-                  </button>
+                  {stack ? (
+                    <button
+                      type="button"
+                      className="quick-tile"
+                      role="switch"
+                      aria-checked={doc.parallax > 0}
+                      onClick={() => onPatch({ parallax: doc.parallax > 0 ? 0 : DEPTH })}
+                    >
+                      <span className={`quick-tile-art depth-art ${doc.parallax > 0 ? 'is-on' : ''}`} aria-hidden="true">
+                        <span />
+                        <span />
+                      </span>
+                      <strong>Depth {doc.parallax > 0 ? 'on' : 'off'}</strong>
+                      <span>Subjects push in</span>
+                    </button>
+                  ) : null}
                 </div>
               </section>
             </div>

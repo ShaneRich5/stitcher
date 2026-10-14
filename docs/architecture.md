@@ -47,8 +47,9 @@ src/
     app-update.ts             Notices a replaced build (a lazy load 404s, or the live page names a newer one)
     samples.ts                The GIF and Collage first-visit samples, drawn from assets/samples/*.svg
     first-use.ts              Whether this browser has been through a tool's example
-    collage.ts                CollageDoc helpers, timing, pace presets, the sequence schedule, photos
-                              fading back out (or staying), and drawCollageFrame (preview + export)
+    collage.ts                CollageDoc helpers, styles (the Instagram loop, or stacks whose photos fade
+                              out or stay), timing, pace presets, the sequence schedule, and
+                              drawCollageFrame (preview + export)
     use-element-size.ts, use-stored-mode.ts  A measured element's size; Quick / Studio remembered per tool
     image-registry.ts         imageId -> decoded image, object URL and source blob
     crop-image.ts             Register part of an image as a new one (Fill this slide)
@@ -117,9 +118,18 @@ CollageItem { id, name, imageId, naturalWidth, naturalHeight, cutoutId: string |
   `removeBackground` one photo at a time through a queue in `collage-maker.tsx`. The cutout is the
   same size as the photo, and both are drawn into the same cover-fit box, so the subject sits
   exactly where it was in its photo.
-- Item `i`'s subject starts at `i × stepMs` and fades in over `fadeMs`; its photo starts fading in
-  `backgroundDelayMs` later. Earlier subjects stay, so they stack. The video ends `holdEndMs`
-  after the last background is in (`collageDurationMs`).
+- **Instagram style** (`style: 'instagram'`, the default) shows one photo at a time. Each photo gets
+  a turn of `max(stepMs, backgroundDelayMs + fadeMs)`: on screen alone, then the next photo arrives
+  over it, its subject fading in first and its photo `backgroundDelayMs` later, covering the old
+  one. Once the photo is in, its subject isn't drawn on top, being in the photo already. After the
+  last photo the first arrives the same way, and the video ends as it's back in full, so the end
+  meets the start and it loops (`instagramFrame` says what any moment shows). There's no end hold,
+  overlay or parallax.
+- **Stack style:** item `i`'s subject starts at `i × stepMs` and fades in over `fadeMs`; its photo
+  starts fading in `backgroundDelayMs` later. Earlier subjects stay, so they stack. With
+  `backgrounds: 'fade'` each photo fades back out as the next subject arrives; with `'stay'` it
+  stays until covered. The video ends `holdEndMs` after the last background is in
+  (`collageDurationMs`).
 - **Parallax** treats each photo and its cutout as two planes. From its subject appearing until the
   next background has covered its own, both zoom in around the subject's center (the centroid of
   the cutout's alpha, read once per cutout), the subject three times as far as the photo, so it

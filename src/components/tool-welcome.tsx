@@ -148,11 +148,12 @@ export function GifWelcomePreview() {
 const PHOTO_H = 150
 const RESULT_H = 236
 
-/** The Collage sample's photos, and the video they make: every friend stacked over the last photo. */
+/** The Collage sample's photos, and the video they make: the first photo's friend stepping in over the last photo, as the loop closes. */
 export function CollageWelcomePreview() {
   const last = COLLAGE_SAMPLE_PHOTOS.length - 1
   const photoW = Math.round((PHOTO_H * 9) / 16)
   const resultW = Math.round((RESULT_H * 9) / 16)
+  const lastPhoto = collageSampleLayout(last, resultW, RESULT_H)
   return (
     <div className="collage-welcome">
       <div className="collage-welcome-photos">
@@ -177,20 +178,18 @@ export function CollageWelcomePreview() {
         <ArtCrop
           width={resultW}
           height={RESULT_H}
-          sunset={collageSampleLayout(last, resultW, RESULT_H).sunset}
+          sunset={lastPhoto.sunset}
+          friend={lastPhoto.friend}
+          flip={COLLAGE_SAMPLE_PHOTOS[last].flip}
           tone={COLLAGE_SAMPLE_PHOTOS[last].tone}
         />
-        <span className="collage-welcome-dim" />
-        {COLLAGE_SAMPLE_PHOTOS.map((photo, i) => (
-          <ArtCrop
-            key={photo.name}
-            className="collage-welcome-cutout"
-            width={resultW}
-            height={RESULT_H}
-            friend={collageSampleLayout(i, resultW, RESULT_H).friend}
-            flip={photo.flip}
-          />
-        ))}
+        <ArtCrop
+          className="collage-welcome-cutout"
+          width={resultW}
+          height={RESULT_H}
+          friend={collageSampleLayout(0, resultW, RESULT_H).friend}
+          flip={COLLAGE_SAMPLE_PHOTOS[0].flip}
+        />
       </span>
     </div>
   )

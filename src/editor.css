@@ -538,12 +538,6 @@ select:focus-visible {
   inset: 0;
 }
 
-.collage-welcome-dim {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.25);
-}
-
 .collage-welcome-cutout img {
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
 }
@@ -3084,6 +3078,40 @@ select:focus-visible {
   left: 0;
 }
 
+/* The collage's styles: a name and a line on what it does, the one in use marked. */
+.style-menu {
+  gap: 2px;
+  padding: 6px;
+}
+
+.style-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: 13px/1.4 var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.style-option strong {
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.style-option:hover {
+  background: color-mix(in srgb, var(--border) 45%, transparent);
+}
+
+.style-option[aria-pressed='true'] {
+  background: var(--accent-bg);
+  box-shadow: inset 0 0 0 1.5px var(--accent-border);
+}
+
 .quick-seg {
   display: inline-flex;
   gap: 2px;
@@ -3331,12 +3359,6 @@ select:focus-visible {
   gap: 12px;
 }
 
-/* The collage's three paces and its two switches, kept on one row. */
-.quick-tiles.is-five {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-}
-
 .quick-tile {
   padding: 0;
   border: 0;
@@ -3444,30 +3466,6 @@ select:focus-visible {
 
 .depth-art.is-on span:last-child {
   transform: scale(1.3);
-}
-
-/* A photo behind a subject; with fade out on, the photo fades away and the subject stays. */
-.fade-art span {
-  position: absolute;
-  transition: opacity 200ms ease;
-}
-
-.fade-art span:first-child {
-  width: 44px;
-  height: 30px;
-  border-radius: 4px;
-  background: #8a8378;
-}
-
-.fade-art span:last-child {
-  width: 16px;
-  height: 24px;
-  border-radius: 8px 8px 3px 3px;
-  background: var(--panel-text);
-}
-
-.fade-art.is-on span:first-child {
-  opacity: 0.25;
 }
 
 .quick-toolbar {
@@ -4004,6 +4002,11 @@ select:focus-visible {
   background: linear-gradient(90deg, rgba(201, 162, 124, 0) 0, #c9a27c var(--ramp), #c9a27c 100%);
 }
 
+/* The Instagram style's first photo, on screen from the start until the next one is in. */
+.sequence-bar.is-photo.is-lead {
+  background: linear-gradient(90deg, #c9a27c 0, #c9a27c calc(100% - var(--ramp)), rgba(201, 162, 124, 0) 100%);
+}
+
 .sequence-bar.is-photo.is-fading {
   background: linear-gradient(
     90deg,
@@ -4160,8 +4163,7 @@ select:focus-visible {
     animation: none;
   }
 
-  .depth-art span,
-  .fade-art span {
+  .depth-art span {
     transition: none;
   }
 }
@@ -4200,11 +4202,6 @@ select:focus-visible {
 
   .quick-tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  /* The three paces on one row, the two switches under them. */
-  .quick-tiles.is-five {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .collage-quick {

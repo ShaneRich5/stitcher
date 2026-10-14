@@ -31,7 +31,7 @@ type Props = {
   onRetry: (id: string) => void
 }
 
-/** The photos in stacking order, each with where its cutout is up to. Drag a row to reorder. */
+/** The photos in order, each with where its cutout is up to. Drag a row to reorder. */
 export function CollagePhotos({ doc, selectedId, cuttingId, onSelect, onReorder, onRetry }: Props) {
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [dropAt, setDropAt] = useState<number | null>(null)
@@ -40,7 +40,7 @@ export function CollagePhotos({ doc, selectedId, cuttingId, onSelect, onReorder,
     setDropAt(null)
   }
 
-  if (!doc.items.length) return <p className="studio-empty">Add photos and they stack here, first to last.</p>
+  if (!doc.items.length) return <p className="studio-empty">Add photos and they line up here, first to last.</p>
 
   return (
     <ol className="photo-rows">
