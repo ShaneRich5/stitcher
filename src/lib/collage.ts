@@ -26,6 +26,12 @@ export type CollageDoc = {
   dim: number
   /** 0–1: how far each subject pushes in ahead of its background, a two-plane parallax. 0 is off. */
   parallax: number
+  /**
+   * What each photo does behind its subject: `fade` fades it back out as the next subject arrives
+   * (the last one before the end hold), so the subjects end up stacked on the overlay color;
+   * `stay` keeps it until the next photo has faded in over it, ending on the last photo.
+   */
+  backgrounds: 'fade' | 'stay'
   format: VideoExportFormat
 }
 
@@ -56,6 +62,7 @@ export function createCollageDoc(): CollageDoc {
     overlay: '#000000',
     dim: 0.25,
     parallax: 0.5,
+    backgrounds: 'fade',
     format: 'mp4',
   }
 }
@@ -101,6 +108,24 @@ export function moveItem(doc: CollageDoc, from: number, to: number): CollageDoc 
 function progress(elapsedMs: number, durationMs: number): number {
   if (durationMs <= 0) return elapsedMs >= 0 ? 1 : 0
   return Math.min(1, Math.max(0, elapsedMs / durationMs))
+}
+
+/**
+ * When item `index`'s photo starts to fade back out, or null when photos stay. It goes as the next
+ * subject arrives; the last one goes a step after it came, as if another were due, but always in
+ * time to be gone by the end.
+ */
+export function backgroundOutMs(doc: CollageDoc, index: number): number | null {
+  if (doc.backgrounds !== 'fade') return null
+  if (index < doc.items.length - 1) return itemStartMs(doc, index + 1)
+  return Math.min(itemStartMs(doc, index) + doc.stepMs, collageDurationMs(doc) - doc.fadeMs)
+}
+
+/** How visible item `index`'s photo is at `timeMs`, 0–1, before anything is drawn over it. */
+export function backgroundAlpha(doc: CollageDoc, index: number, timeMs: number): number {
+  const fadeIn = progress(timeMs - itemStartMs(doc, index) - doc.backgroundDelayMs, doc.fadeMs)
+  const out = backgroundOutMs(doc, index)
+  return out === null ? fadeIn : fadeIn * (1 - progress(timeMs - out, doc.fadeMs))
 }
 
 function easeOut(p: number): number {
@@ -204,19 +229,18 @@ export function drawCollageFrame(ctx: CanvasRenderingContext2D, doc: CollageDoc,
   ctx.fillStyle = doc.overlay
   ctx.fillRect(0, 0, width, height)
 
-  // Backgrounds cross-fade in order. The newest one that is fully in hides the rest, so start there.
-  const backgroundAlpha = (i: number) =>
-    progress(timeMs - itemStartMs(doc, i) - doc.backgroundDelayMs, doc.fadeMs)
+  // Backgrounds fade in order. The newest one that is fully in hides the rest, so start there.
   let first = 0
   for (let i = items.length - 1; i > 0; i--) {
-    if (backgroundAlpha(i) >= 1) {
+    if (backgroundAlpha(doc, i, timeMs) >= 1) {
       first = i
       break
     }
   }
   for (let i = first; i < items.length; i++) {
-    const alpha = backgroundAlpha(i)
-    if (alpha <= 0) break
+    if (timeMs < itemStartMs(doc, i) + doc.backgroundDelayMs) break
+    const alpha = backgroundAlpha(doc, i, timeMs)
+    if (alpha <= 0) continue
     const item = items[i]!
     const photo = getImage(item.imageId)?.image
     if (!photo) continue
@@ -267,20 +291,28 @@ export function pacePresetFor(doc: CollageDoc): PaceId | null {
   )
 }
 
-/** When one photo's subject and background come in, and when the next background has covered it. */
-export type ItemSchedule = { subjectInMs: number; backgroundInMs: number; coveredMs: number }
+/**
+ * When one photo's subject and background come in, and when its background is gone: faded back
+ * out, or covered by the next one.
+ */
+export type ItemSchedule = { subjectInMs: number; backgroundInMs: number; goneMs: number; fadesOut: boolean }
 
 /**
  * Each item's moments, for drawing the sequence: its subject starts to fade in, its photo starts
- * to fade in behind, and the next photo is fully in on top of it (the end, for the last one).
+ * to fade in behind, and its photo is gone again, faded out or with the next photo fully in on
+ * top of it (the end, for the last one that stays).
  */
 export function itemSchedule(doc: CollageDoc): ItemSchedule[] {
   const end = collageDurationMs(doc)
-  return doc.items.map((_, i) => ({
-    subjectInMs: itemStartMs(doc, i),
-    backgroundInMs: itemStartMs(doc, i) + doc.backgroundDelayMs,
-    coveredMs: i < doc.items.length - 1 ? itemSettledMs(doc, i + 1) : end,
-  }))
+  return doc.items.map((_, i) => {
+    const out = backgroundOutMs(doc, i)
+    return {
+      subjectInMs: itemStartMs(doc, i),
+      backgroundInMs: itemStartMs(doc, i) + doc.backgroundDelayMs,
+      goneMs: out !== null ? Math.min(end, out + doc.fadeMs) : i < doc.items.length - 1 ? itemSettledMs(doc, i + 1) : end,
+      fadesOut: out !== null,
+    }
+  })
 }
 
 export type CutoutState = 'ready' | 'cutting' | 'waiting' | 'failed'

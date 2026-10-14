@@ -45,8 +45,8 @@ src/
     handoff.ts                Frames passed between tools in memory (carousel slides -> GIF tool)
     samples.ts                The GIF and Collage first-visit samples, drawn from assets/samples/*.svg
     first-use.ts              Whether this browser has been through a tool's example
-    collage.ts                CollageDoc helpers, timing, pace presets, the sequence schedule, and
-                              drawCollageFrame (preview + export)
+    collage.ts                CollageDoc helpers, timing, pace presets, the sequence schedule, photos
+                              fading back out (or staying), and drawCollageFrame (preview + export)
     use-element-size.ts, use-stored-mode.ts  A measured element's size; Quick / Studio remembered per tool
     image-registry.ts         imageId -> decoded image, object URL and source blob
     crop-image.ts             Register part of an image as a new one (Fill this slide)

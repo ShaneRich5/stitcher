@@ -141,6 +141,31 @@ export function CollageInspector({ variant, doc, selected, cuttingId, onPatch, o
           </button>
         ))}
       </div>
+      <div className="segmented inspector-fit" role="group" aria-label="Photos behind">
+        <button
+          type="button"
+          title="Each photo fades back out as the next subject arrives, so the video ends on the subjects alone"
+          className={`seg-btn ${doc.backgrounds === 'fade' ? 'on' : ''}`}
+          aria-pressed={doc.backgrounds === 'fade'}
+          onClick={() => onPatch({ backgrounds: 'fade' })}
+        >
+          Fade out
+        </button>
+        <button
+          type="button"
+          title="Each photo stays until the next one covers it, so the video ends on the last photo"
+          className={`seg-btn ${doc.backgrounds === 'stay' ? 'on' : ''}`}
+          aria-pressed={doc.backgrounds === 'stay'}
+          onClick={() => onPatch({ backgrounds: 'stay' })}
+        >
+          Stay
+        </button>
+      </div>
+      <p className="inspector-note">
+        {doc.backgrounds === 'fade'
+          ? 'Each photo fades back out as the next subject arrives, so the video ends on the subjects stacked over the overlay.'
+          : 'Each photo stays until the next one covers it, so the video ends on the last photo.'}
+      </p>
       <label className="range-field" title="Time from one subject appearing to the next">
         <span>Per photo</span>
         <input type="range" min={500} max={4000} step={50} value={doc.stepMs} onChange={(e) => onPatch({ stepMs: Number(e.target.value) })} />

@@ -121,11 +121,11 @@ export function CollageSequence({
                       style={{ left: pct(s.subjectInMs), width: pct(total - s.subjectInMs), ...ramp(total - s.subjectInMs) }}
                     />
                     <span
-                      className="sequence-bar is-photo"
+                      className={`sequence-bar is-photo ${s.fadesOut ? 'is-fading' : ''}`}
                       style={{
                         left: pct(s.backgroundInMs),
-                        width: pct(s.coveredMs - s.backgroundInMs),
-                        ...ramp(s.coveredMs - s.backgroundInMs),
+                        width: pct(s.goneMs - s.backgroundInMs),
+                        ...ramp(s.goneMs - s.backgroundInMs),
                       }}
                     />
                   </span>
