@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test'
 
-// Photos fade back out behind their subjects by default, and Quick's switch and Studio's choice
-// both change it. How the fade looks is covered by the unit tests on `backgroundAlpha`.
+// The collage opens in the Instagram style; Quick's style menu and Studio's Timing switch it to
+// either stack, and only the stacks show their depth and overlay controls. How each style looks is
+// covered by the unit tests on `instagramFrame` and `backgroundAlpha`.
 
-test('photos fade out by default, and Quick and Studio both switch it', async ({ page }) => {
+test('the Instagram collage is the default, and Quick and Studio switch styles', async ({ page }) => {
   // Keep the background remover from downloading; the photo's cutout just fails.
   await page.route('**/huggingface.co/**', (route) => route.abort())
   await page.goto('collage')
@@ -20,16 +21,25 @@ test('photos fade out by default, and Quick and Studio both switch it', async ({
     .locator('.quick > input[type=file]')
     .setInputFiles({ name: 'mine.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1]!, 'base64') })
 
-  const fade = page.getByRole('switch', { name: /^Fade out/ })
-  await expect(fade).toHaveAttribute('aria-checked', 'true')
-  await expect(fade).toContainText('Ends on the subjects')
-  await fade.click()
-  await expect(fade).toHaveAttribute('aria-checked', 'false')
-  await expect(fade).toContainText('Ends on the last photo')
+  const styleChip = page.locator('.quick-chips summary.quick-chip', { hasText: 'Instagram collage' })
+  await expect(styleChip).toBeVisible()
+  // The stacks' controls stay out of the way.
+  await expect(page.getByRole('switch', { name: /Depth/ })).toHaveCount(0)
+  await expect(page.getByLabel('Overlay color')).toHaveCount(0)
+
+  await styleChip.click()
+  const menu = page.getByRole('group', { name: 'Style' })
+  await expect(menu.getByRole('button', { name: /Instagram collage/ })).toHaveAttribute('aria-pressed', 'true')
+  await menu.getByRole('button', { name: /^Stack The subjects pile up while/ }).click()
+  await expect(page.locator('.quick-chips summary.quick-chip', { hasText: 'Stack' })).toBeVisible()
+  await expect(page.getByRole('switch', { name: /Depth/ })).toBeVisible()
+  await expect(page.getByLabel('Overlay color')).toHaveCount(1)
 
   await page.getByRole('button', { name: 'Studio', exact: true }).click()
-  const behind = page.getByRole('group', { name: 'Photos behind' })
-  await expect(behind.getByRole('button', { name: 'Stay' })).toHaveAttribute('aria-pressed', 'true')
-  await behind.getByRole('button', { name: 'Fade out' }).click()
-  await expect(behind.getByRole('button', { name: 'Fade out' })).toHaveAttribute('aria-pressed', 'true')
+  const studioStyles = page.getByRole('group', { name: 'Style' })
+  await expect(studioStyles.getByRole('button', { name: 'Stack', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await studioStyles.getByRole('button', { name: 'Stack + photos' }).click()
+  await expect(studioStyles.getByRole('button', { name: 'Stack + photos' })).toHaveAttribute('aria-pressed', 'true')
+  await studioStyles.getByRole('button', { name: 'Instagram' }).click()
+  await expect(page.getByText('It loops: the last photo hands back to the first')).toBeVisible()
 })

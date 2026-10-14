@@ -41,14 +41,19 @@ const GUIDE: GuideStep[] = [
   {
     target: 'player',
     title: 'This is an example',
-    body: 'Five photos of one friend. Each is cut out and stacks on the last, then its photo fades in behind.',
+    body: 'Five photos of one friend. Each one’s subject arrives over the photo on screen, then its own photo fills in behind, and it loops.',
   },
   {
     target: 'photos',
     title: 'Your photos, in order',
-    body: 'They stack in this order; drag one to move it. The cutouts are made on your device.',
+    body: 'They come in this order, and the last hands back to the first; drag one to move it. The cutouts are made on your device.',
   },
-  { target: 'pace', title: 'Pick a pace', body: 'How quickly each photo lands. Depth makes each one push in as it arrives.' },
+  {
+    target: 'style',
+    title: 'Pick a style',
+    body: 'The Instagram collage shows one photo at a time. The stacks pile the subjects up instead.',
+  },
+  { target: 'pace', title: 'Pick a pace', body: 'How long each photo gets.' },
   {
     target: 'add',
     title: 'Now use your own photos',
@@ -451,7 +456,9 @@ export function CollageMaker() {
       {hasItems ? (
         <>
           <span className="stage-chip">
-            <strong>{time >= durationMs - doc.holdEndMs ? 'End hold' : `Photo ${activeIndex + 1} arriving`}</strong>
+            <strong>
+              {doc.style === 'stack' && time >= durationMs - doc.holdEndMs ? 'End hold' : `Photo ${activeIndex + 1} arriving`}
+            </strong>
             <span>
               {doc.width} × {doc.height}
             </span>
@@ -489,8 +496,8 @@ export function CollageMaker() {
         {!hasItems ? (
           sampleLoading ? null : (
             <ToolWelcome
-              title="Stack photos into a video."
-              lede="Pick a few photos of the same person. Each one is cut out and stacked on the last, as its photo fades in behind."
+              title="Photos that hand off to each other."
+              lede="Pick a few photos. Each one’s subject is cut out and steps in over the photo before, then its own photo fills in behind, and it loops."
               chooseLabel="Choose photos"
               onFiles={(files) => void addFiles(files)}
               onExample={showExample}
@@ -544,7 +551,9 @@ export function CollageMaker() {
                 <h2 id="photos-heading" className="studio-heading">
                   Photos
                 </h2>
-                <p className="studio-hint">First to last. Each stacks on the ones before.</p>
+                <p className="studio-hint">
+                  {doc.style === 'stack' ? 'First to last. Each stacks on the ones before.' : 'First to last, then back to the first.'}
+                </p>
                 {photos}
               </section>
               <section className="studio-panel post-panel" aria-labelledby="video-heading">

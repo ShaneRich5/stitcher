@@ -40,6 +40,8 @@ export function CollageSequence({
   const total = Math.max(1, durationMs)
   const pct = (ms: number) => `${(Math.max(0, Math.min(total, ms)) / total) * 100}%`
   const schedule = itemSchedule(doc)
+  /** The end hold is the stack's; the Instagram style loops instead. */
+  const hold = doc.style === 'stack' ? doc.holdEndMs : 0
   const tickStep = total > 12000 ? 2000 : 1000
   const ticks = Array.from({ length: Math.floor(total / tickStep) + 1 }, (_, i) => i * tickStep)
   /** The fade, as a share of a bar `length` ms long, for the bar's ramp. */
@@ -79,7 +81,7 @@ export function CollageSequence({
               <span className="legend-swatch is-photo" aria-hidden="true" />
               Its photo behind
             </span>
-            {doc.holdEndMs > 0 ? (
+            {hold > 0 ? (
               <span>
                 <span className="legend-swatch is-hold" aria-hidden="true" />
                 End hold
@@ -118,8 +120,18 @@ export function CollageSequence({
                   <span className="sequence-lane-track">
                     <span
                       className={`sequence-bar is-subject is-${state}`}
-                      style={{ left: pct(s.subjectInMs), width: pct(total - s.subjectInMs), ...ramp(total - s.subjectInMs) }}
+                      style={{
+                        left: pct(s.subjectInMs),
+                        width: pct(s.subjectOutMs - s.subjectInMs),
+                        ...ramp(s.subjectOutMs - s.subjectInMs),
+                      }}
                     />
+                    {s.leadUntilMs !== null ? (
+                      <span
+                        className="sequence-bar is-photo is-lead"
+                        style={{ left: 0, width: pct(s.leadUntilMs), ...ramp(s.leadUntilMs) }}
+                      />
+                    ) : null}
                     <span
                       className={`sequence-bar is-photo ${s.fadesOut ? 'is-fading' : ''}`}
                       style={{
@@ -134,8 +146,8 @@ export function CollageSequence({
             })}
             {/* Over the tracks only, so its percentages line up with the bars. */}
             <div className="sequence-overlay" aria-hidden="true">
-              {doc.holdEndMs > 0 ? (
-                <span className="sequence-hold" style={{ left: pct(total - doc.holdEndMs), width: pct(doc.holdEndMs) }} />
+              {hold > 0 ? (
+                <span className="sequence-hold" style={{ left: pct(total - hold), width: pct(hold) }} />
               ) : null}
               <span className="sequence-playhead" style={{ left: pct(timeMs) }} />
             </div>

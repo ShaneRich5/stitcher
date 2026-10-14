@@ -3,31 +3,41 @@ import { getImage } from './image-registry'
 import type { CollageItem } from '../types'
 
 /**
- * A video collage. Each photo's subject is cut out and appears on top of the subjects before it,
- * then the photo itself fades in behind the stack as the new background, a beat later. The next
- * subject follows `stepMs` after the last one.
+ * How the photos come together:
+ * - `instagram`: one photo at a time. The next photo's subject arrives over the one on screen, then
+ *   its photo fills in behind it as the old one fades away; after the last photo the first comes
+ *   back the same way, so the video loops seamlessly.
+ * - `stack`: the subjects pile up, each over the ones before, with its photo fading in behind a beat
+ *   later (and, with `backgrounds: 'fade'`, back out as the next subject arrives).
+ */
+export type CollageStyle = 'instagram' | 'stack'
+
+/**
+ * A video collage. Each photo's subject is cut out; how subjects and photos come in is the
+ * `style`. The next subject follows `stepMs` after the last one.
  */
 export type CollageDoc = {
   items: CollageItem[]
   /** Output size in pixels, from the format presets. */
   width: number
   height: number
-  /** Time from one subject appearing to the next. */
+  style: CollageStyle
+  /** Time from one subject appearing to the next: in Instagram style, each photo's whole turn. */
   stepMs: number
   /** How long after its subject a photo's background starts to fade in. */
   backgroundDelayMs: number
   /** Length of each fade, for subjects and backgrounds alike. */
   fadeMs: number
-  /** Extra time on the finished stack at the end. */
+  /** Extra time on the finished stack at the end. Stack style only; the Instagram style loops. */
   holdEndMs: number
-  /** Shown before the first background, and laid over the backgrounds at `dim` strength. */
+  /** Stack style: shown before the first background, and laid over the backgrounds at `dim` strength. */
   overlay: string
   /** 0–1: how strongly the overlay color covers the backgrounds, so the subjects stand out. */
   dim: number
-  /** 0–1: how far each subject pushes in ahead of its background, a two-plane parallax. 0 is off. */
+  /** Stack style, 0–1: how far each subject pushes in ahead of its background, a two-plane parallax. 0 is off. */
   parallax: number
   /**
-   * What each photo does behind its subject: `fade` fades it back out as the next subject arrives
+   * Stack style: what each photo does behind its subject: `fade` fades it back out as the next subject arrives
    * (the last one before the end hold), so the subjects end up stacked on the overlay color;
    * `stay` keeps it until the next photo has faded in over it, ending on the last photo.
    */
@@ -55,6 +65,7 @@ export function createCollageDoc(): CollageDoc {
     items: [],
     width: 1080,
     height: 1920,
+    style: 'instagram',
     stepMs: 1500,
     backgroundDelayMs: 700,
     fadeMs: 450,
@@ -67,26 +78,59 @@ export function createCollageDoc(): CollageDoc {
   }
 }
 
-/** Ends once the last background is in and the end hold has passed. */
+/** How long a photo's arrival takes: its subject fades in, then its photo, `backgroundDelayMs` later. */
+function arrivalLengthMs(doc: CollageDoc): number {
+  return doc.backgroundDelayMs + doc.fadeMs
+}
+
+/**
+ * Instagram style: each photo's turn. It's on screen alone, then the next photo arrives over it,
+ * finishing as the turn ends. Never shorter than an arrival, so arrivals never overlap.
+ */
+export function turnMs(doc: CollageDoc): number {
+  return Math.max(doc.stepMs, arrivalLengthMs(doc))
+}
+
+/**
+ * Instagram style: when arrival `k` starts, the one at the end of photo `k`'s turn, bringing in
+ * photo `k + 1` (photo 0 again after the last).
+ */
+export function arrivalMs(doc: CollageDoc, k: number): number {
+  return (k + 1) * turnMs(doc) - arrivalLengthMs(doc)
+}
+
+/**
+ * Stack style ends once the last background is in and the end hold has passed. Instagram style
+ * ends as the first photo is back in full, a turn per photo, so the end meets the start.
+ */
 export function collageDurationMs(doc: CollageDoc): number {
   const n = doc.items.length
   if (!n) return 0
+  if (doc.style === 'instagram') return n * turnMs(doc)
   return (n - 1) * doc.stepMs + doc.backgroundDelayMs + doc.fadeMs + doc.holdEndMs
 }
 
-/** When item `index`'s subject starts to appear. */
+/** When item `index`'s subject starts to appear. In Instagram style the first photo is there from the start. */
 export function itemStartMs(doc: CollageDoc, index: number): number {
+  if (doc.style === 'instagram') return index === 0 ? 0 : arrivalMs(doc, index - 1)
   return index * doc.stepMs
 }
 
 /** The moment item `index`'s step is complete: its subject and its background both fully in. */
 export function itemSettledMs(doc: CollageDoc, index: number): number {
+  if (doc.style === 'instagram') return index === 0 ? 0 : index * turnMs(doc)
   return Math.min(collageDurationMs(doc), itemStartMs(doc, index) + doc.backgroundDelayMs + doc.fadeMs)
 }
 
-/** The item whose subject appeared most recently at `timeMs`. */
+/** The item whose subject appeared most recently at `timeMs` (in Instagram style, the one arriving or on screen). */
 export function itemIndexAt(doc: CollageDoc, timeMs: number): number {
-  return Math.max(0, Math.min(doc.items.length - 1, Math.floor(timeMs / Math.max(1, doc.stepMs))))
+  const n = doc.items.length
+  if (doc.style === 'instagram') {
+    if (n < 2 || timeMs < arrivalMs(doc, 0)) return 0
+    const k = Math.min(n - 1, Math.floor((timeMs - arrivalMs(doc, 0)) / turnMs(doc)))
+    return (k + 1) % n
+  }
+  return Math.max(0, Math.min(n - 1, Math.floor(timeMs / Math.max(1, doc.stepMs))))
 }
 
 export function patchItem(doc: CollageDoc, id: string, patch: Partial<CollageItem>): CollageDoc {
@@ -199,6 +243,29 @@ function parallaxProgress(doc: CollageDoc, index: number, timeMs: number): numbe
   return easeInOut(progress(timeMs - start, end - start))
 }
 
+/** What an Instagram-style frame shows: a photo in full, and maybe the next one arriving over it. */
+export type InstagramFrame = {
+  /** The photo on screen, in full. */
+  base: number
+  /** The photo arriving, if one is: its subject's and its photo's opacity, 0–1. */
+  arriving: { index: number; subject: number; photo: number } | null
+}
+
+/**
+ * Instagram style at `timeMs`: the photo on screen, and the next one arriving over it. The arriving
+ * subject fades in over the photo on screen, then its own photo fades in behind it, covering the
+ * old one; once its photo is in, the subject is dropped, being in the photo already.
+ */
+export function instagramFrame(doc: CollageDoc, timeMs: number): InstagramFrame {
+  const n = doc.items.length
+  if (n < 2 || timeMs < arrivalMs(doc, 0)) return { base: 0, arriving: null }
+  const k = Math.min(n - 1, Math.floor((timeMs - arrivalMs(doc, 0)) / turnMs(doc)))
+  const start = arrivalMs(doc, k)
+  const photo = progress(timeMs - start - doc.backgroundDelayMs, doc.fadeMs)
+  const subject = photo >= 1 ? 0 : progress(timeMs - start, doc.fadeMs)
+  return { base: k, arriving: { index: (k + 1) % n, subject, photo } }
+}
+
 /**
  * Draw the collage as it looks at `timeMs`, in a context whose coordinates are the doc's output
  * size. The preview and the video export both draw through this, so they match.
@@ -206,6 +273,36 @@ function parallaxProgress(doc: CollageDoc, index: number, timeMs: number): numbe
 export function drawCollageFrame(ctx: CanvasRenderingContext2D, doc: CollageDoc, timeMs: number): void {
   const { width, height, items } = doc
   const cutoutOf = (item: CollageItem) => (item.cutoutId ? getImage(item.cutoutId)?.image : undefined)
+
+  if (doc.style === 'instagram') {
+    ctx.save()
+    ctx.imageSmoothingQuality = 'high'
+    ctx.globalAlpha = 1
+    ctx.fillStyle = doc.overlay
+    ctx.fillRect(0, 0, width, height)
+    const frame = instagramFrame(doc, timeMs)
+    const drawPhoto = (i: number, alpha: number) => {
+      const item = items[i]
+      const photo = item && getImage(item.imageId)?.image
+      if (!photo || alpha <= 0) return
+      const box = coverBox(item, width, height)
+      ctx.globalAlpha = alpha
+      ctx.drawImage(photo, box.x, box.y, box.width, box.height)
+    }
+    drawPhoto(frame.base, 1)
+    if (frame.arriving) {
+      const { index, subject, photo } = frame.arriving
+      drawPhoto(index, photo)
+      const cutout = subject > 0 ? cutoutOf(items[index]!) : undefined
+      if (cutout) {
+        const box = coverBox(items[index]!, width, height)
+        ctx.globalAlpha = subject
+        ctx.drawImage(cutout, box.x, box.y + (1 - easeOut(subject)) * height * RISE, box.width, box.height)
+      }
+    }
+    ctx.restore()
+    return
+  }
 
   /** Where item `i`'s photo and subject are drawn now, each zoomed around the subject's center. */
   const placement = (i: number) => {
@@ -267,6 +364,39 @@ export function drawCollageFrame(ctx: CanvasRenderingContext2D, doc: CollageDoc,
   ctx.restore()
 }
 
+/** The styles offered in Quick and Studio: the Instagram loop, and the two kinds of stack. */
+export const COLLAGE_STYLES = [
+  {
+    id: 'instagram',
+    label: 'Instagram collage',
+    short: 'Instagram',
+    hint: 'One photo at a time: each subject leads its photo in over the last, and it loops',
+    patch: { style: 'instagram' },
+  },
+  {
+    id: 'stack',
+    label: 'Stack',
+    short: 'Stack',
+    hint: 'The subjects pile up while their photos fade away, ending on the subjects alone',
+    patch: { style: 'stack', backgrounds: 'fade' },
+  },
+  {
+    id: 'stack-keep',
+    label: 'Stack over photos',
+    short: 'Stack + photos',
+    hint: 'The subjects pile up, each photo staying until the next covers it, ending on the last photo',
+    patch: { style: 'stack', backgrounds: 'stay' },
+  },
+] as const satisfies readonly { id: string; label: string; short: string; hint: string; patch: Partial<CollageDoc> }[]
+
+export type CollageStyleId = (typeof COLLAGE_STYLES)[number]['id']
+
+/** Which of the offered styles the doc is in. */
+export function collageStyleFor(doc: CollageDoc): CollageStyleId {
+  if (doc.style === 'instagram') return 'instagram'
+  return doc.backgrounds === 'fade' ? 'stack' : 'stack-keep'
+}
+
 type Pace = Pick<CollageDoc, 'stepMs' | 'backgroundDelayMs' | 'fadeMs' | 'holdEndMs'>
 
 /** Quick's paces: the four timings together. Steady is the default doc's timing. */
@@ -292,10 +422,18 @@ export function pacePresetFor(doc: CollageDoc): PaceId | null {
 }
 
 /**
- * When one photo's subject and background come in, and when its background is gone: faded back
- * out, or covered by the next one.
+ * When one photo's subject comes in and goes, when its background comes in, and when its background
+ * is gone: faded back out, or covered by the next one. In Instagram style the first photo is also on
+ * screen from the start until `leadUntilMs`.
  */
-export type ItemSchedule = { subjectInMs: number; backgroundInMs: number; goneMs: number; fadesOut: boolean }
+export type ItemSchedule = {
+  subjectInMs: number
+  subjectOutMs: number
+  backgroundInMs: number
+  goneMs: number
+  fadesOut: boolean
+  leadUntilMs: number | null
+}
 
 /**
  * Each item's moments, for drawing the sequence: its subject starts to fade in, its photo starts
@@ -304,13 +442,31 @@ export type ItemSchedule = { subjectInMs: number; backgroundInMs: number; goneMs
  */
 export function itemSchedule(doc: CollageDoc): ItemSchedule[] {
   const end = collageDurationMs(doc)
+  const n = doc.items.length
+  if (doc.style === 'instagram') {
+    if (n < 2) return doc.items.map(() => ({ subjectInMs: 0, subjectOutMs: 0, backgroundInMs: 0, goneMs: end, fadesOut: false, leadUntilMs: null }))
+    // Photo i arrives in arrival i - 1; the first arrives last, in arrival n - 1, to close the loop.
+    return doc.items.map((_, i) => {
+      const start = arrivalMs(doc, (i - 1 + n) % n)
+      return {
+        subjectInMs: start,
+        subjectOutMs: start + arrivalLengthMs(doc),
+        backgroundInMs: start + doc.backgroundDelayMs,
+        goneMs: i === 0 ? end : (i + 1) * turnMs(doc),
+        fadesOut: i !== 0,
+        leadUntilMs: i === 0 ? turnMs(doc) : null,
+      }
+    })
+  }
   return doc.items.map((_, i) => {
     const out = backgroundOutMs(doc, i)
     return {
       subjectInMs: itemStartMs(doc, i),
+      subjectOutMs: end,
       backgroundInMs: itemStartMs(doc, i) + doc.backgroundDelayMs,
       goneMs: out !== null ? Math.min(end, out + doc.fadeMs) : i < doc.items.length - 1 ? itemSettledMs(doc, i + 1) : end,
       fadesOut: out !== null,
+      leadUntilMs: null,
     }
   })
 }

@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import {
   collageDurationMs,
+  COLLAGE_STYLES,
+  collageStyleFor,
   cutoutState,
   itemStartMs,
   PACE_PRESETS,
@@ -88,6 +90,9 @@ export function CollageInspector({ variant, doc, selected, cuttingId, onPatch, o
   const failed = doc.items.filter((i) => i.failed)
   const waiting = doc.items.filter((i) => !i.cutoutId && !i.failed).length
   const pace = pacePresetFor(doc)
+  const style = COLLAGE_STYLES.find((st) => st.id === collageStyleFor(doc))!
+  /** Depth, the overlay and the end hold only mean something when the subjects stack up. */
+  const stack = doc.style === 'stack'
 
   const head = selected ? (
     <>
@@ -141,32 +146,25 @@ export function CollageInspector({ variant, doc, selected, cuttingId, onPatch, o
           </button>
         ))}
       </div>
-      <div className="segmented inspector-fit" role="group" aria-label="Photos behind">
-        <button
-          type="button"
-          title="Each photo fades back out as the next subject arrives, so the video ends on the subjects alone"
-          className={`seg-btn ${doc.backgrounds === 'fade' ? 'on' : ''}`}
-          aria-pressed={doc.backgrounds === 'fade'}
-          onClick={() => onPatch({ backgrounds: 'fade' })}
-        >
-          Fade out
-        </button>
-        <button
-          type="button"
-          title="Each photo stays until the next one covers it, so the video ends on the last photo"
-          className={`seg-btn ${doc.backgrounds === 'stay' ? 'on' : ''}`}
-          aria-pressed={doc.backgrounds === 'stay'}
-          onClick={() => onPatch({ backgrounds: 'stay' })}
-        >
-          Stay
-        </button>
+      <div className="segmented inspector-fit" role="group" aria-label="Style">
+        {COLLAGE_STYLES.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            title={s.label}
+            className={`seg-btn ${style.id === s.id ? 'on' : ''}`}
+            aria-pressed={style.id === s.id}
+            onClick={() => onPatch(s.patch)}
+          >
+            {s.short}
+          </button>
+        ))}
       </div>
-      <p className="inspector-note">
-        {doc.backgrounds === 'fade'
-          ? 'Each photo fades back out as the next subject arrives, so the video ends on the subjects stacked over the overlay.'
-          : 'Each photo stays until the next one covers it, so the video ends on the last photo.'}
-      </p>
-      <label className="range-field" title="Time from one subject appearing to the next">
+      <p className="inspector-note">{style.hint}.</p>
+      <label
+        className="range-field"
+        title={stack ? 'Time from one subject appearing to the next' : 'Each photo’s turn: on screen alone, then the next one arriving'}
+      >
         <span>Per photo</span>
         <input type="range" min={500} max={4000} step={50} value={doc.stepMs} onChange={(e) => onPatch({ stepMs: Number(e.target.value) })} />
         <output>{seconds(doc.stepMs)}</output>
@@ -188,18 +186,22 @@ export function CollageInspector({ variant, doc, selected, cuttingId, onPatch, o
         <input type="range" min={0} max={1500} step={50} value={doc.fadeMs} onChange={(e) => onPatch({ fadeMs: Number(e.target.value) })} />
         <output>{seconds(doc.fadeMs)}</output>
       </label>
-      <label className="range-field" title="Extra time on the finished stack">
-        <span>End hold</span>
-        <input
-          type="range"
-          min={0}
-          max={5000}
-          step={100}
-          value={doc.holdEndMs}
-          onChange={(e) => onPatch({ holdEndMs: Number(e.target.value) })}
-        />
-        <output>{seconds(doc.holdEndMs)}</output>
-      </label>
+      {stack ? (
+        <label className="range-field" title="Extra time on the finished stack">
+          <span>End hold</span>
+          <input
+            type="range"
+            min={0}
+            max={5000}
+            step={100}
+            value={doc.holdEndMs}
+            onChange={(e) => onPatch({ holdEndMs: Number(e.target.value) })}
+          />
+          <output>{seconds(doc.holdEndMs)}</output>
+        </label>
+      ) : (
+        <p className="inspector-note">It loops: the last photo hands back to the first, so there’s no end to hold.</p>
+      )}
     </div>
   )
 
@@ -277,7 +279,7 @@ export function CollageInspector({ variant, doc, selected, cuttingId, onPatch, o
           <span>
             <strong>{failed.length === 1 ? failed[0]!.name : `${failed.length} photos`}</strong>{' '}
             {failed.length === 1 ? 'has' : 'have'} no cutout, so {failed.length === 1 ? 'its photo comes' : 'their photos come'} in with
-            nobody added to the stack.
+            {stack ? 'nobody added to the stack.' : 'no subject leading it in.'}
           </span>
           <button type="button" className="btn btn-outline" onClick={() => onShow(doc.items.indexOf(failed[0]!))}>
             Show
@@ -306,8 +308,8 @@ export function CollageInspector({ variant, doc, selected, cuttingId, onPatch, o
 
   const sections: InspectorSection[] = [
     { id: 'timing', label: 'Timing', body: timing },
-    { id: 'motion', label: 'Motion', body: motion },
-    { id: 'overlay', label: 'Overlay', body: overlay },
+    ...(stack ? [{ id: 'motion', label: 'Motion', body: motion }] : []),
+    ...(stack ? [{ id: 'overlay', label: 'Overlay', body: overlay }] : []),
     { id: 'cutout', label: 'Cutout', body: cutout },
     { id: 'look', label: 'Film look', body: <SoonNote>The carousel's looks across the whole video, grain and all.</SoonNote> },
     { id: 'checks', label: 'Checks', body: checks, badge: failed.length },
