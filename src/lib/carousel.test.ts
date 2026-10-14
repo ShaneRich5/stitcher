@@ -172,6 +172,43 @@ describe('setSlideCount', () => {
     expect(setSlideCount(doc, 3)).toBe(doc)
     expect(setSlideCount(doc, 3.2)).toBe(doc)
   })
+
+  // Pic 1 on slide 1, pic 2 across slides 2 and 3, and pic 3 filling the row with its cutout over it.
+  const pic1 = makeLayer(doc, square, 'free', 0)
+  const pic2 = { ...makeLayer(doc, wide, 'free', 1), x: 1180, width: 1960, height: 980 }
+  const pic3 = makeLayer(doc, square, 'fill')
+  const cutout = { ...pic3, id: 'cutout', fit: 'free' as const, x: pic3.x + 400, width: 900, height: 1200 }
+  const composed = withLayers(doc, pic3, cutout, pic1, pic2)
+
+  it('adds a slide at the end without moving or resizing anything', () => {
+    const next = setSlideCount(composed, 4)
+    expect(next.count).toBe(4)
+    expect(next.layers.map((l) => l.id)).toEqual(composed.layers.map((l) => l.id))
+    for (const [i, l] of next.layers.entries()) {
+      const was = composed.layers[i]!
+      expect([l.x, l.y, l.width, l.height]).toEqual([was.x, was.y, was.width, was.height])
+    }
+  })
+
+  it('frees a Fill photo that no longer covers every slide, and keeps one that still does', () => {
+    // The square fills the 3-slide row 3240 wide, so it can't reach slide 4.
+    expect(setSlideCount(composed, 4).layers[0]!.fit).toBe('free')
+    // A panorama 4:1 fills the row by its height and overhangs it, so it still covers 4 slides.
+    const pano = makeLayer(doc, { id: 'p', name: 'p.jpg', naturalWidth: 4000, naturalHeight: 1000 }, 'fill')
+    expect(setSlideCount(withLayers(doc, pano), 4).layers[0]!.fit).toBe('fill')
+  })
+
+  it('keeps a Fit photo while it fits, and frees it once the row is too short for it', () => {
+    const fit = makeLayer(doc, wide, 'fit')
+    expect(setSlideCount(withLayers(doc, fit), 5).layers[0]!.fit).toBe('fit')
+    expect(setSlideCount(withLayers(doc, fit), 2).layers[0]!.fit).toBe('free')
+  })
+
+  it('takes slides off the end, dropping only free layers wholly past it', () => {
+    const next = setSlideCount(composed, 1)
+    expect(next.layers.map((l) => l.id)).toEqual([pic3.id, cutout.id, pic1.id])
+    expect(next.layers[0]!.x).toBe(pic3.x)
+  })
 })
 
 describe('removeSlide', () => {

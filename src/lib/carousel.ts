@@ -355,9 +355,43 @@ export function relayout(prev: CarouselDoc, next: CarouselDoc): CarouselDoc {
   return { ...next, layers }
 }
 
+/** Within half a pixel, so rounding never counts against a layer. */
+const EDGE = 0.5
+
+/** An unturned layer that covers every slide of `doc`, as a Fill layer should. */
+function coversRow(doc: CarouselDoc, l: Layer): boolean {
+  return (
+    Math.abs(normalizeDegrees(l.rotation)) < 0.01 &&
+    l.x <= EDGE &&
+    l.y <= EDGE &&
+    l.x + l.width >= totalWidth(doc) - EDGE &&
+    l.y + l.height >= doc.slideH - EDGE
+  )
+}
+
+/** A layer that lies wholly inside the row of slides, as a Fit layer should. */
+function fitsRow(doc: CarouselDoc, l: Layer): boolean {
+  const b = layerBounds(l)
+  return b.x >= -EDGE && b.y >= -EDGE && b.x + b.width <= totalWidth(doc) + EDGE && b.y + b.height <= doc.slideH + EDGE
+}
+
+/**
+ * Add slides at the end, or take them off the end, without changing the slides that stay: every
+ * layer keeps its place and size. Free layers left wholly past the last slide go. A Fill layer that
+ * no longer covers every slide, or a Fit layer that no longer fits in the row, becomes free, since
+ * it no longer does what its mode says; picking the mode again spreads it over the new row.
+ */
 export function setSlideCount(doc: CarouselDoc, count: number): CarouselDoc {
   const n = Math.max(1, Math.min(MAX_SLIDES, Math.round(count)))
-  return n === doc.count ? doc : relayout(doc, { ...doc, count: n })
+  if (n === doc.count) return doc
+  const next = { ...doc, count: n }
+  const width = totalWidth(next)
+  const layers = doc.layers.flatMap((l): Layer[] => {
+    if (l.fit === 'free') return l.x >= width ? [] : [l]
+    const keeps = l.fit === 'fill' ? coversRow(next, l) : fitsRow(next, l)
+    return [keeps ? l : { ...l, fit: 'free' }]
+  })
+  return { ...next, layers }
 }
 
 /** Remove one slide; free layers on it go with it and layers to its right shift left. */

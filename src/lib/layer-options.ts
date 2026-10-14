@@ -5,7 +5,7 @@ import type { FitMode } from '../types'
 export type CutoutMode = 'replace' | 'layer' | 'portrait'
 
 export const FIT_OPTIONS: { value: FitMode; label: string; hint: string }[] = [
-  { value: 'fill', label: 'Fill slides', hint: 'Cover every slide; rescales when you change slides or format' },
+  { value: 'fill', label: 'Fill slides', hint: 'Cover every slide; pick it again to spread over slides you add' },
   { value: 'fit', label: 'Fit', hint: 'Show the whole photo across the slides' },
   { value: 'free', label: 'Free', hint: 'Fit inside one slide, then place it anywhere' },
 ]
