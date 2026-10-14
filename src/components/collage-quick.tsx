@@ -173,7 +173,7 @@ export function CollageQuick({
                   <h2 id="pace-heading">Pace</h2>
                   <span>{pace ? 'How quickly each photo lands.' : 'Timing set in Studio. Pick one to go back to a preset.'}</span>
                 </div>
-                <div className="quick-tiles">
+                <div className="quick-tiles is-five">
                   {PACE_PRESETS.map((p, i) => (
                     <button key={p.id} type="button" className="quick-tile" aria-pressed={pace === p.id} onClick={() => onPatch(p.pace)}>
                       <span className="quick-tile-art pace-cards" aria-hidden="true" style={{ '--spread': `${SPREAD[i]}px` } as CSSProperties}>
@@ -198,6 +198,20 @@ export function CollageQuick({
                     </span>
                     <strong>Depth {doc.parallax > 0 ? 'on' : 'off'}</strong>
                     <span>Subjects push in</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="quick-tile"
+                    role="switch"
+                    aria-checked={doc.backgrounds === 'fade'}
+                    onClick={() => onPatch({ backgrounds: doc.backgrounds === 'fade' ? 'stay' : 'fade' })}
+                  >
+                    <span className={`quick-tile-art fade-art ${doc.backgrounds === 'fade' ? 'is-on' : ''}`} aria-hidden="true">
+                      <span />
+                      <span />
+                    </span>
+                    <strong>Fade out {doc.backgrounds === 'fade' ? 'on' : 'off'}</strong>
+                    <span>{doc.backgrounds === 'fade' ? 'Ends on the subjects' : 'Ends on the last photo'}</span>
                   </button>
                 </div>
               </section>

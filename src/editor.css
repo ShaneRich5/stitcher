@@ -3100,6 +3100,12 @@ select:focus-visible {
   gap: 12px;
 }
 
+/* The collage's three paces and its two switches, kept on one row. */
+.quick-tiles.is-five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .quick-tile {
   padding: 0;
   border: 0;
@@ -3160,10 +3166,11 @@ select:focus-visible {
 }
 
 /* Three cards, closer together for a quicker pace. */
+/* Three cards, centered as a group, `--spread` apart. */
 .pace-cards span {
   position: absolute;
   top: 11px;
-  left: 16px;
+  left: calc(50% - (20px + var(--spread) * 2) / 2);
   width: 20px;
   height: 30px;
   border-radius: 4px;
@@ -3171,12 +3178,12 @@ select:focus-visible {
 }
 
 .pace-cards span:nth-child(2) {
-  left: calc(16px + var(--spread));
+  left: calc(50% - (20px + var(--spread) * 2) / 2 + var(--spread));
   background: #b8b0a2;
 }
 
 .pace-cards span:nth-child(3) {
-  left: calc(16px + var(--spread) * 2);
+  left: calc(50% - (20px + var(--spread) * 2) / 2 + var(--spread) * 2);
   background: var(--panel-text);
 }
 
@@ -3206,6 +3213,30 @@ select:focus-visible {
 
 .depth-art.is-on span:last-child {
   transform: scale(1.3);
+}
+
+/* A photo behind a subject; with fade out on, the photo fades away and the subject stays. */
+.fade-art span {
+  position: absolute;
+  transition: opacity 200ms ease;
+}
+
+.fade-art span:first-child {
+  width: 44px;
+  height: 30px;
+  border-radius: 4px;
+  background: #8a8378;
+}
+
+.fade-art span:last-child {
+  width: 16px;
+  height: 24px;
+  border-radius: 8px 8px 3px 3px;
+  background: var(--panel-text);
+}
+
+.fade-art.is-on span:first-child {
+  opacity: 0.25;
 }
 
 .quick-toolbar {
@@ -3723,7 +3754,8 @@ select:focus-visible {
   align-self: stretch;
 }
 
-/* Each bar fades in over its first `--ramp`, as the subject or photo does. */
+/* Each bar fades in over its first `--ramp`, as the subject or photo does, and a photo that fades
+   back out fades over its last `--ramp` too. */
 .sequence-bar {
   position: absolute;
   height: 8px;
@@ -3739,6 +3771,16 @@ select:focus-visible {
 .sequence-bar.is-photo {
   top: 16px;
   background: linear-gradient(90deg, rgba(201, 162, 124, 0) 0, #c9a27c var(--ramp), #c9a27c 100%);
+}
+
+.sequence-bar.is-photo.is-fading {
+  background: linear-gradient(
+    90deg,
+    rgba(201, 162, 124, 0) 0,
+    #c9a27c var(--ramp),
+    #c9a27c calc(100% - var(--ramp)),
+    rgba(201, 162, 124, 0) 100%
+  );
 }
 
 /* No cutout yet, or none to be had: the subject's bar is only an outline. */
@@ -3887,7 +3929,8 @@ select:focus-visible {
     animation: none;
   }
 
-  .depth-art span {
+  .depth-art span,
+  .fade-art span {
     transition: none;
   }
 }
@@ -3926,6 +3969,11 @@ select:focus-visible {
 
   .quick-tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* The three paces on one row, the two switches under them. */
+  .quick-tiles.is-five {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .collage-quick {
