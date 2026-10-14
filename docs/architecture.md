@@ -18,7 +18,7 @@ src/
     root-layout.tsx           App shell; each tool renders its own <AppNav> with its actions
     landing-page.tsx          Landing page: hero, panorama split into slides, links to the tools
     stitcher-editor.tsx       Carousel tool: state, handlers, keyboard, drag/drop, paste, export
-    carousel-stage.tsx        Konva stage: slides, layers, snapping, transformer, zoom and pan
+    carousel-stage.tsx        Konva stage: slides, layers, snapping, transformer, zoom and pan, clean view
     carousel-controls.tsx     Whole-carousel controls (slides, format, split, style, export type)
     image-controls.tsx        Selected-image controls (compact or detailed bar under the canvas / phone sheet), layer picker
     slide-strip.tsx           Thumbnails of the slides as posted

@@ -227,6 +227,12 @@ export function CarouselStage({
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [panning, setPanning] = useState(false)
   const [profileGrid, setProfileGrid] = useState(readStoredGrid)
+  /**
+   * Clean view: only the slides, as they'll be exported, with every guide, mark and handle hidden.
+   * Nothing can be grabbed meanwhile, so a look can't nudge anything. Choosing a subject needs its
+   * marks, so it's off while that's open.
+   */
+  const [cleanView, setCleanView] = useState(false)
   const [guides, setGuides] = useState<SnapGuides>({ v: [], h: [] })
   /** The layer being dragged or transformed, as it is right now, so its face marks follow it. */
   const [live, setLive] = useState<{ id: string; patch: Partial<Layer> } | null>(null)
@@ -253,7 +259,8 @@ export function CarouselStage({
   const stageH = view ? viewport.h : Math.max(1, Math.round(world.height * scale))
   const origin = view ?? { x: -world.x * scale, y: -world.y * scale }
   const snapThreshold = 8 / scale
-  const gridCrop = profileGrid ? profileGridCrop(doc) : null
+  const clean = cleanView && !picking
+  const gridCrop = profileGrid && !clean ? profileGridCrop(doc) : null
 
   const selected = doc.layers.find((l) => l.id === selectedId) ?? null
   // Hidden layers aren't drawn; locked ones are drawn but let presses through to what's under them.
@@ -267,7 +274,7 @@ export function CarouselStage({
   const markDoc = live
     ? { ...doc, layers: doc.layers.map((l) => (l.id === live.id ? { ...l, ...live.patch } : l)) }
     : doc
-  const faceMarks = picking ? [] : distinctBoxes(facesOnEdges(markDoc, faces).map((m) => m.box))
+  const faceMarks = picking || clean ? [] : distinctBoxes(facesOnEdges(markDoc, faces).map((m) => m.box))
 
   const trackLive = (layer: Layer, node: Konva.Node) => {
     if (!faces[layer.imageId]?.length) return
@@ -293,9 +300,9 @@ export function CarouselStage({
     const tr = trRef.current
     if (!tr) return
     const node = canTransform && !isPicking ? tr.getStage()?.findOne(`#layer-${selectedId}`) : undefined
-    tr.nodes(node ? [node] : [])
+    tr.nodes(node && !clean ? [node] : [])
     tr.getLayer()?.batchDraw()
-  }, [selectedId, canTransform, doc.layers, scale, isPicking])
+  }, [selectedId, canTransform, doc.layers, scale, isPicking, clean])
 
   const pointerWorld = (e: Konva.KonvaEventObject<Event>) => {
     const p = e.target.getStage()?.getPointerPosition()
@@ -667,7 +674,7 @@ export function CarouselStage({
                 />
 
                 {/* Faded, interactive copies: what you grab, and the Transformer's target. */}
-                <Group listening={!picking}>
+                <Group listening={!picking && !clean} visible={!clean}>
                   {shown.map((layer) => (
                     <KonvaImage
                       key={`layer-${layer.id}`}
@@ -756,61 +763,65 @@ export function CarouselStage({
                   </Group>
                 ) : null}
 
-                {slides.map((i) => {
-                  const ox = i * doc.slideW
-                  const lines: number[][] = []
-                  for (let c = 1; c < doc.gridCols; c++) {
-                    const x = ox + (c * doc.slideW) / doc.gridCols
-                    lines.push([x, 0, x, doc.slideH])
-                  }
-                  for (let r = 1; r < doc.gridRows; r++) {
-                    const y = (r * doc.slideH) / doc.gridRows
-                    lines.push([ox, y, ox + doc.slideW, y])
-                  }
-                  return lines.map((points, k) => (
-                    <Line
-                      key={`grid-${i}-${k}`}
-                      points={points}
-                      stroke={ACCENT}
-                      strokeWidth={1 / scale}
-                      dash={[6 / scale, 4 / scale]}
-                      opacity={0.8}
-                      listening={false}
-                    />
-                  ))
-                })}
+                {clean ? null : (
+                  <>
+                    {slides.map((i) => {
+                      const ox = i * doc.slideW
+                      const lines: number[][] = []
+                      for (let c = 1; c < doc.gridCols; c++) {
+                        const x = ox + (c * doc.slideW) / doc.gridCols
+                        lines.push([x, 0, x, doc.slideH])
+                      }
+                      for (let r = 1; r < doc.gridRows; r++) {
+                        const y = (r * doc.slideH) / doc.gridRows
+                        lines.push([ox, y, ox + doc.slideW, y])
+                      }
+                      return lines.map((points, k) => (
+                        <Line
+                          key={`grid-${i}-${k}`}
+                          points={points}
+                          stroke={ACCENT}
+                          strokeWidth={1 / scale}
+                          dash={[6 / scale, 4 / scale]}
+                          opacity={0.8}
+                          listening={false}
+                        />
+                      ))
+                    })}
 
-                {slides.slice(1).map((i) => (
-                  <Group key={`seam-${i}`} listening={false}>
-                    <Line points={[i * doc.slideW, 0, i * doc.slideW, doc.slideH]} stroke="rgba(29,27,24,0.35)" strokeWidth={3 / scale} />
-                    <Line
-                      points={[i * doc.slideW, 0, i * doc.slideW, doc.slideH]}
-                      stroke="#ffffff"
-                      strokeWidth={1.5 / scale}
-                      dash={[8 / scale, 6 / scale]}
-                    />
-                  </Group>
-                ))}
+                    {slides.slice(1).map((i) => (
+                      <Group key={`seam-${i}`} listening={false}>
+                        <Line points={[i * doc.slideW, 0, i * doc.slideW, doc.slideH]} stroke="rgba(29,27,24,0.35)" strokeWidth={3 / scale} />
+                        <Line
+                          points={[i * doc.slideW, 0, i * doc.slideW, doc.slideH]}
+                          stroke="#ffffff"
+                          strokeWidth={1.5 / scale}
+                          dash={[8 / scale, 6 / scale]}
+                        />
+                      </Group>
+                    ))}
 
-                <Rect x={0} y={0} width={worldW} height={doc.slideH} stroke="rgba(29,27,24,0.45)" strokeWidth={1 / scale} listening={false} />
-                {!selectedId && activeSlide < doc.count ? (
-                  <Rect
-                    x={activeSlide * doc.slideW}
-                    y={0}
-                    width={doc.slideW}
-                    height={doc.slideH}
-                    stroke={ACCENT}
-                    strokeWidth={2 / scale}
-                    listening={false}
-                  />
-                ) : null}
+                    <Rect x={0} y={0} width={worldW} height={doc.slideH} stroke="rgba(29,27,24,0.45)" strokeWidth={1 / scale} listening={false} />
+                    {!selectedId && activeSlide < doc.count ? (
+                      <Rect
+                        x={activeSlide * doc.slideW}
+                        y={0}
+                        width={doc.slideW}
+                        height={doc.slideH}
+                        stroke={ACCENT}
+                        strokeWidth={2 / scale}
+                        listening={false}
+                      />
+                    ) : null}
 
-                {slides.map((i) => (
-                  <Label key={`num-${i}`} x={i * doc.slideW + 10 / scale} y={10 / scale} scaleX={1 / scale} scaleY={1 / scale} listening={false}>
-                    <Tag fill={i === activeSlide ? ACCENT : 'rgba(29,27,24,0.72)'} cornerRadius={10} />
-                    <Text text={String(i + 1)} fontFamily="IBM Plex Mono, ui-monospace, monospace" fontSize={12} fill="#ffffff" padding={5} />
-                  </Label>
-                ))}
+                    {slides.map((i) => (
+                      <Label key={`num-${i}`} x={i * doc.slideW + 10 / scale} y={10 / scale} scaleX={1 / scale} scaleY={1 / scale} listening={false}>
+                        <Tag fill={i === activeSlide ? ACCENT : 'rgba(29,27,24,0.72)'} cornerRadius={10} />
+                        <Text text={String(i + 1)} fontFamily="IBM Plex Mono, ui-monospace, monospace" fontSize={12} fill="#ffffff" padding={5} />
+                      </Label>
+                    ))}
+                  </>
+                )}
 
                 {faceMarks.map((box, i) => (
                   <Group key={`face-${i}`} listening={false}>
@@ -906,10 +917,26 @@ export function CarouselStage({
         <button type="button" className="zoom-btn" disabled={!view} title="Fit the slides on screen" onClick={() => setView(null)}>
           Fit
         </button>
+        <button
+          type="button"
+          className="zoom-btn"
+          aria-pressed={clean}
+          disabled={!!picking}
+          title={
+            clean
+              ? 'Show the slide numbers, edges, guides and handles again, to edit'
+              : 'Hide the slide numbers, edges, guides and handles, to see the slides as they’ll be posted'
+          }
+          onClick={() => setCleanView((on) => !on)}
+        >
+          <Icon name={clean ? 'eye-off' : 'eye'} size={15} />
+          Clean view
+        </button>
         {profileGridCrop(doc) ? (
           <button
             type="button"
             className="zoom-btn"
+            disabled={clean}
             aria-pressed={profileGrid}
             title="Shade what Instagram's profile grid crops from the first slide"
             onClick={() => setProfileGrid((on) => !on)}
