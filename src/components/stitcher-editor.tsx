@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { failureMessage } from '../lib/app-update'
 import {
   coverSlide,
   createDoc,
@@ -328,7 +329,7 @@ export function StitcherEditor() {
       placeCutout(layerId, imageId, cutout, mode)
     } catch (e) {
       console.error(e)
-      say('Could not remove the background')
+      say(failureMessage(e, 'Could not remove the background'))
     } finally {
       setCutoutStatus(null)
     }
@@ -349,7 +350,7 @@ export function StitcherEditor() {
       await opening
     } catch (e) {
       console.error(e)
-      say('Could not load the subject picker')
+      say(failureMessage(e, 'Could not load the subject picker'))
       setPicking((p) => (p?.imageId === imageId ? null : p))
     } finally {
       if (pickerOpen.current === opening) setPickerStatus(null)
@@ -374,7 +375,7 @@ export function StitcherEditor() {
     } catch (e) {
       console.error(e)
       if (request !== pickRequest.current) return
-      say('Could not find a subject there')
+      say(failureMessage(e, 'Could not find a subject there'))
       setPicking((p) => (current(p) ? { ...p!, working: false } : p))
     }
   }
@@ -402,7 +403,7 @@ export function StitcherEditor() {
       placeCutout(layerId, imageId, cutout, mode)
     } catch (e) {
       console.error(e)
-      say('Could not cut out that subject')
+      say(failureMessage(e, 'Could not cut out that subject'))
     } finally {
       setCutoutStatus(null)
     }
@@ -491,7 +492,7 @@ export function StitcherEditor() {
       }
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'AbortError')) {
-        say(e instanceof Error ? e.message : 'Export failed')
+        say(failureMessage(e, e instanceof Error ? e.message : 'Export failed'))
       }
     } finally {
       setBusy(false)
@@ -521,7 +522,7 @@ export function StitcherEditor() {
       void navigate({ to: '/gif' })
     } catch (e) {
       console.error(e)
-      say('Could not make the slides into frames')
+      say(failureMessage(e, 'Could not make the slides into frames'))
     } finally {
       setBusy(false)
     }

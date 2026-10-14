@@ -16,6 +16,7 @@ src/
     collage.tsx               /collage -> CollageMaker
   components/
     root-layout.tsx           App shell; each tool renders its own <AppNav> with its actions
+    update-banner.tsx         Offers a reload once a newer deploy has replaced this page's build
     landing-page.tsx          Landing page: hero, panorama split into slides, links to the tools
     stitcher-editor.tsx       Carousel tool: state, handlers, keyboard, drag/drop, paste, export
     carousel-stage.tsx        Konva stage: slides, layers, snapping, transformer, zoom and pan
@@ -43,6 +44,7 @@ src/
     gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay, speed presets,
                               output size and the bars / soft frame checks
     handoff.ts                Frames passed between tools in memory (carousel slides -> GIF tool)
+    app-update.ts             Notices a replaced build (a lazy load 404s, or the live page names a newer one)
     samples.ts                The GIF and Collage first-visit samples, drawn from assets/samples/*.svg
     first-use.ts              Whether this browser has been through a tool's example
     collage.ts                CollageDoc helpers, timing, pace presets, the sequence schedule, photos

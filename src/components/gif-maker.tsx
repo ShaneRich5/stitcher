@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'react'
+import { failureMessage } from '../lib/app-update'
 import { downloadBlob } from '../lib/download'
 import { exportAnimation, type AnimationExportFormat } from '../lib/encode-gif'
 import { fitContain } from '../lib/draw-frame'
@@ -289,7 +290,7 @@ export function GifMaker() {
       })
       downloadBlob(result.blob, result.filename)
     } catch (e) {
-      say(e instanceof Error ? e.message : 'Export failed')
+      say(failureMessage(e, e instanceof Error ? e.message : 'Export failed'))
     } finally {
       setBusy(false)
     }
