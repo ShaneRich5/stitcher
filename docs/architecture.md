@@ -106,8 +106,12 @@ CollageItem { id, name, imageId, naturalWidth, naturalHeight, cutoutId: string |
 - `x, y, width, height` describe the unrotated box (top-left, world pixels). `rotation` and
   `flipX` apply around the box center.
 - `fit` is `fill` (cover the row), `fit` (contain in the row) or `free` (placed by hand).
-  Fill and fit layers rescale with the row when the slide count or format changes, through
-  `relayout`. Free layers scale with the slide size and are dropped if left past the last slide.
+  Fill and fit layers rescale with the row when the format changes or a slide is removed from the
+  middle, through `relayout`. Free layers scale with the slide size and are dropped if left past
+  the last slide.
+- Adding or removing slides at the end (`setSlideCount`) moves nothing, so the slides that stay
+  look the same. A fill layer that no longer covers every slide, or a fit layer that no longer
+  fits, becomes free; picking its mode again spreads it over the new row.
 
 ## Collage
 

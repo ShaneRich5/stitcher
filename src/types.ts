@@ -1,6 +1,7 @@
 /**
- * How a layer relates to the carousel. `fill` and `fit` layers rescale with the whole row when
- * the slide count or format changes; `free` layers keep their size and position.
+ * How a layer relates to the carousel. `fill` and `fit` layers rescale with the whole row when the
+ * format changes or a slide is taken out of the middle; `free` layers keep their size and position.
+ * Adding or removing slides at the end moves nothing (see `setSlideCount`).
  */
 export type FitMode = 'fill' | 'fit' | 'free'
 
