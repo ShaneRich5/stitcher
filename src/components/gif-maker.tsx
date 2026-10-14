@@ -22,6 +22,7 @@ import {
 import { clearHandoff, peekHandoff } from '../lib/handoff'
 import { getImage } from '../lib/image-registry'
 import { listFiles, loadImageFiles } from '../lib/load-image'
+import { makeGifSample } from '../lib/samples'
 import { useElementSize } from '../lib/use-element-size'
 import { useMediaQuery } from '../lib/use-media-query'
 import { useStoredMode } from '../lib/use-stored-mode'
@@ -90,6 +91,10 @@ export function GifMaker() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  /** True while the frames are the sample a first visit opens with; adding frames replaces them. */
+  const [sample, setSample] = useState(false)
+  /** Bumped by anything that changes the frames wholesale, so a sample still loading doesn't land on top. */
+  const sampleRequest = useRef(0)
   const noticeTimer = useRef<number | undefined>(undefined)
   const [canvasRef, canvasBox] = useElementSize()
   const isPhone = useMediaQuery('(max-width: 820px)')
@@ -112,6 +117,25 @@ export function GifMaker() {
 
   // The doc has taken any handed-over frames, so a later visit starts fresh.
   useEffect(() => clearHandoff(), [])
+
+  /** Show the sample frames, unless something else has filled the doc by the time they're drawn. */
+  const loadSample = () => {
+    const request = ++sampleRequest.current
+    makeGifSample().then((frames) => {
+      if (request !== sampleRequest.current) return
+      setDoc((d) => (d.frames.length ? d : { ...d, frames }))
+      setSample(true)
+      setFrameIndex(0)
+      setPlaying(true)
+    }, console.error)
+  }
+
+  // A first visit opens on the sample, unless another tool handed frames over.
+  useEffect(() => {
+    if (!doc.frames.length) loadSample()
+    // Only on arrival: later, an empty doc means the frames were removed on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     try {
@@ -146,7 +170,12 @@ export function GifMaker() {
       naturalWidth: img.naturalWidth,
       naturalHeight: img.naturalHeight,
     }))
-    setDoc((d) => ({ ...d, frames: [...d.frames, ...frames] }))
+    // Your first frames replace the sample rather than joining it.
+    const replace = sample
+    sampleRequest.current++
+    setSample(false)
+    setDoc((d) => ({ ...d, frames: replace ? frames : [...d.frames, ...frames] }))
+    if (replace) setFrameIndex(0)
   }
 
   const removeAt = (id: string) => {
@@ -176,6 +205,8 @@ export function GifMaker() {
     setDoc(createGifDoc())
     setFrameIndex(0)
     setPlaying(true)
+    setSample(false)
+    loadSample()
   }
 
   const runExport = async () => {

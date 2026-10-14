@@ -14,6 +14,7 @@ import {
 import { downloadBlob } from '../lib/download'
 import { listFiles, loadImageFiles } from '../lib/load-image'
 import { removeBackground } from '../lib/remove-background'
+import { makeCollageSample } from '../lib/samples'
 import { useMediaQuery } from '../lib/use-media-query'
 import { useStoredMode } from '../lib/use-stored-mode'
 import type { CollageItem } from '../types'
@@ -52,6 +53,10 @@ export function CollageMaker() {
   const [startOverOpen, setStartOverOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  /** True while the photos are the sample a first visit opens with; adding photos replaces them. */
+  const [sample, setSample] = useState(false)
+  /** Bumped by anything that changes the photos wholesale, so a sample still loading doesn't land on top. */
+  const sampleRequest = useRef(0)
   const noticeTimer = useRef<number | undefined>(undefined)
   /** Items still waiting for a cutout, processed one at a time by `runCutouts`. */
   const queue = useRef<CollageItem[]>([])
@@ -78,6 +83,25 @@ export function CollageMaker() {
   }
 
   const patch = (next: Partial<CollageDoc>) => setDoc((d) => ({ ...d, ...next }))
+
+  /** Show the sample photos, cut out already, unless photos have been added by the time they're drawn. */
+  const loadSample = (width: number, height: number) => {
+    const request = ++sampleRequest.current
+    makeCollageSample(width, height).then((items) => {
+      if (request !== sampleRequest.current) return
+      setDoc((d) => (d.items.length ? d : { ...d, items }))
+      setSample(true)
+      setTimeMs(0)
+      setPlaying(true)
+    }, console.error)
+  }
+
+  // A first visit opens on the sample, playing.
+  useEffect(() => {
+    loadSample(doc.width, doc.height)
+    // Only on arrival: later, an empty doc means the photos were removed on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Play the preview in real time and loop it.
   useEffect(() => {
@@ -157,7 +181,16 @@ export function CollageMaker() {
       cutoutId: null,
       failed: false,
     }))
-    setDoc((d) => ({ ...d, items: [...d.items, ...items] }))
+    // Your first photos replace the sample rather than joining it.
+    const replace = sample
+    sampleRequest.current++
+    setSample(false)
+    setDoc((d) => ({ ...d, items: replace ? items : [...d.items, ...items] }))
+    if (replace) {
+      setSelectedId(null)
+      setTimeMs(0)
+      setPlaying(false)
+    }
     queue.current.push(...items)
     void runCutouts()
   }
@@ -180,10 +213,13 @@ export function CollageMaker() {
   const startOver = () => {
     setStartOverOpen(false)
     queue.current = []
-    setDoc(createCollageDoc())
+    const fresh = createCollageDoc()
+    setDoc(fresh)
     setSelectedId(null)
     setTimeMs(0)
     setPlaying(false)
+    setSample(false)
+    loadSample(fresh.width, fresh.height)
   }
 
   /** Show the moment photo `index` is complete: its subject and background both in. */

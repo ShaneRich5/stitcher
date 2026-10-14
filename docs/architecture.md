@@ -41,6 +41,7 @@ src/
     gif-doc.ts                GifDoc helpers: frame add/remove/reorder, fps <-> delay, speed presets,
                               output size and the bars / soft frame checks
     handoff.ts                Frames passed between tools in memory (carousel slides -> GIF tool)
+    samples.ts                The GIF and Collage first-visit samples, drawn from assets/samples/*.svg
     collage.ts                CollageDoc helpers, timing, pace presets, the sequence schedule, and
                               drawCollageFrame (preview + export)
     use-element-size.ts, use-stored-mode.ts  A measured element's size; Quick / Studio remembered per tool
