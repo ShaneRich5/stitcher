@@ -10,6 +10,10 @@ import { registerBlob } from './image-registry'
  * vector art at full size. Adding photos replaces them.
  */
 
+/** The designs' art: a 4:1 sunset panorama and the friend, standing alone on transparent. */
+export const SUNSET_ART = sunsetUrl
+export const FRIEND_ART = friendUrl
+
 /** Where the friend stands in the panorama, as fractions of its width and height (the designs' 1240 × 310 place). */
 const FRIEND_IN_SUNSET = { x: 658 / 1240, y: 50 / 310, h: 260 / 310 }
 /** The friend's art is 600 × 900. */

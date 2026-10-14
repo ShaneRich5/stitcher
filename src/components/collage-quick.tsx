@@ -81,7 +81,7 @@ export function CollageQuick({
         }}
       />
       <div className="quick-chips">
-        <button type="button" className="quick-chip" onClick={() => addRef.current?.click()}>
+        <button type="button" className="quick-chip" data-guide="add" onClick={() => addRef.current?.click()}>
           <Icon name="plus" size={16} />
           Add photos
           {count ? <span className="quick-chip-count">{count}</span> : null}
@@ -132,7 +132,9 @@ export function CollageQuick({
         <>
           <div className="collage-quick">
             <div className="collage-quick-player">
-              <div className="collage-stage">{canvas}</div>
+              <div className="collage-stage" data-guide="player">
+                {canvas}
+              </div>
               <div className="frame-pill collage-transport" role="toolbar" aria-label="Playback">
                 <button
                   type="button"
@@ -160,7 +162,7 @@ export function CollageQuick({
             </div>
 
             <div className="collage-quick-side">
-              <section className="quick-card" aria-labelledby="photos-heading">
+              <section className="quick-card" aria-labelledby="photos-heading" data-guide="photos">
                 <div className="quick-card-head">
                   <h2 id="photos-heading">Your photos</h2>
                   <span>In the order they stack. Drag to reorder.</span>
@@ -168,7 +170,7 @@ export function CollageQuick({
                 {photos}
               </section>
 
-              <section className="quick-panel" aria-labelledby="pace-heading">
+              <section className="quick-panel" aria-labelledby="pace-heading" data-guide="pace">
                 <div className="quick-panel-head">
                   <h2 id="pace-heading">Pace</h2>
                   <span>{pace ? 'How quickly each photo lands.' : 'Timing set in Studio. Pick one to go back to a preset.'}</span>
@@ -246,19 +248,7 @@ export function CollageQuick({
             </div>
           ) : null}
         </>
-      ) : (
-        <div className="empty-state">
-          <Icon name="layers" size={28} />
-          <h2>Stack your photos into a video</h2>
-          <p>
-            Pick a few photos. Each subject is cut out and stacks on the ones before it, then its photo fades in
-            behind, all on your device.
-          </p>
-          <button type="button" className="btn btn-primary" onClick={() => addRef.current?.click()}>
-            Choose photos
-          </button>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }

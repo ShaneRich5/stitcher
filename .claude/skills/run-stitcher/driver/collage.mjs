@@ -15,11 +15,15 @@ await run('collage', async (page) => {
   }
   const depth = page.locator('.quick-tile[role=switch]')
 
-  // Quick is the default; clear a remembered Studio from an earlier run.
-  await page.evaluate(() => localStorage.removeItem('stitcher.collage.mode'))
+  // Quick is the default; clear a remembered Studio from an earlier run. Skip the first-visit
+  // example (its Export is ready at once), so the photos go in from the landing page.
+  await page.evaluate(() => {
+    localStorage.removeItem('stitcher.collage.mode')
+    localStorage.setItem('stitcher.collage.example-seen', '1')
+  })
   await page.reload()
   await page
-    .locator('.quick > input[type=file]')
+    .locator('.welcome input[type=file]')
     .setInputFiles([await photo('man-on-car.jpg'), await photo('football-match.jpg')])
   // The cutouts are done once export is enabled.
   await page.waitForFunction(() => {

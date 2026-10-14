@@ -37,13 +37,59 @@ test.describe('GIF first visit', () => {
     await expect(readout(page)).toHaveText(/^3 frames/)
   })
 
-  test('Start over brings the sample back', async ({ page }) => {
+  test('Start over goes to the landing page', async ({ page }) => {
     await page.goto('gif')
     await page.locator('input[type=file]').first().setInputFiles(await photo(page, 'a.png', '#2a9d8f'))
-    await expect(readout(page)).toHaveText(/^1 frame\b/)
+    await expect(readout(page)).toHaveText(/^1 frame /)
     await page.getByRole('button', { name: 'Start over' }).first().click()
     await page.getByRole('alertdialog', { name: 'Start over?' }).getByRole('button', { name: 'Start over' }).click()
+    await expect(page.getByRole('heading', { name: 'A few photos. One loop.' })).toBeVisible()
+    await expect(readout(page)).toHaveText('No frames')
+  })
+})
+
+test.describe('GIF quick guide', () => {
+  test('walks the example in five steps, then later visits open on the landing page', async ({ page }) => {
+    await page.goto('gif')
+    const guide = page.getByRole('dialog', { name: 'GIF quick guide' })
+    await expect(guide).toContainText('1 of 5')
+    await expect(guide).toContainText('This is an example')
+    for (let i = 2; i <= 5; i++) {
+      await guide.getByRole('button', { name: 'Next' }).click()
+      await expect(guide).toContainText(`${i} of 5`)
+    }
+    await guide.getByRole('button', { name: 'Back' }).click()
+    await expect(guide).toContainText('4 of 5')
+    await guide.getByRole('button', { name: 'Next' }).click()
+    await guide.getByRole('button', { name: 'Got it' }).click()
+    await expect(guide).toHaveCount(0)
+    // The example stays to play with until it's replaced.
     await expect(readout(page)).toHaveText(/^6 frames/)
+
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'A few photos. One loop.' })).toBeVisible()
+    await expect(guide).toHaveCount(0)
+  })
+
+  test('Show me an example turns the example and its guide back on', async ({ page }) => {
+    await page.goto('gif')
+    await page.getByRole('dialog', { name: 'GIF quick guide' }).getByRole('button', { name: 'Skip guide' }).click()
+    await page.reload()
+    await page.getByRole('button', { name: 'Show me an example' }).click()
+    await expect(readout(page)).toHaveText(/^6 frames/)
+    await expect(page.getByRole('dialog', { name: 'GIF quick guide' })).toContainText('1 of 5')
+  })
+
+  test('the landing page takes photos, and Escape closes the guide', async ({ page }) => {
+    await page.goto('gif')
+    await expect(page.getByRole('dialog', { name: 'GIF quick guide' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'GIF quick guide' })).toHaveCount(0)
+    await page.reload()
+    await page
+      .locator('.welcome input[type=file]')
+      .setInputFiles([await photo(page, 'a.png', '#2a9d8f'), await photo(page, 'b.png', '#e76f51')])
+    await expect(readout(page)).toHaveText(/^2 frames/)
   })
 })
 
@@ -66,5 +112,19 @@ test.describe('Collage first visit', () => {
     await page.locator('.quick > input[type=file]').setInputFiles(await photo(page, 'mine.png', '#2a9d8f'))
     await expect(readout(page)).toHaveText(/^1 photo\b/)
     await expect(page.getByText('lake.jpg', { exact: true })).toHaveCount(0)
+  })
+})
+
+test.describe('Collage quick guide', () => {
+  test('after the guide, an empty collage is the landing page, and the example comes back from it', async ({ page }) => {
+    await page.goto('collage')
+    const guide = page.getByRole('dialog', { name: 'Collage quick guide' })
+    await expect(guide).toContainText('1 of 5')
+    await guide.getByRole('button', { name: 'Skip guide' }).click()
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'Stack photos into a video.' })).toBeVisible()
+    await page.getByRole('button', { name: 'Show me an example' }).click()
+    await expect(readout(page)).toHaveText(/^5 photos/)
+    await expect(guide).toContainText('1 of 5')
   })
 })
