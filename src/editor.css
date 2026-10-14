@@ -417,31 +417,227 @@ select:focus-visible {
   color: var(--accent);
 }
 
-.empty-state {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(360px, 84%);
+/* ---------- GIF and Collage landing (an empty tool) ---------- */
+.tool-welcome-actions {
+  margin-top: 28px;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  text-align: center;
-  padding: 22px;
-  border: 1.5px dashed var(--accent-border);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
-  backdrop-filter: blur(4px);
 }
 
-.empty-state h2 {
-  margin: 0;
-  font-size: 19px;
+.tool-welcome-actions .btn.welcome-choose {
+  margin-top: 0;
 }
 
-.empty-state p {
+.btn.welcome-example {
+  min-height: 52px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+
+.tool-welcome-preview {
+  margin-top: 40px;
+  flex: none;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.tool-welcome-others {
+  margin: auto 0 0;
+  padding-top: 40px;
   font-size: 14px;
+}
+
+.tool-welcome-others a {
+  color: var(--accent);
+}
+
+/* Part of the sample art, cropped to a box. */
+.art-crop {
+  position: relative;
+  flex: none;
+  display: block;
+  overflow: hidden;
+}
+
+.art-crop img {
+  position: absolute;
+  max-width: none;
+}
+
+.gif-welcome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.gif-welcome-frame {
+  border-radius: 12px;
+  opacity: 0.5;
+  box-shadow: 0 2px 6px rgba(29, 27, 24, 0.06);
+  transition:
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 260ms ease;
+}
+
+.gif-welcome-frame.on {
+  opacity: 1;
+  transform: translateY(-10px) scale(1.06);
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 18px 30px -18px rgba(45, 33, 102, 0.45);
+}
+
+.collage-welcome {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: var(--text);
+}
+
+.collage-welcome-photos {
+  display: flex;
+}
+
+.collage-welcome-photo {
+  border-radius: 10px;
+  border: 3px solid #fff;
+  box-shadow: 0 10px 22px -12px rgba(45, 33, 102, 0.5);
+}
+
+.collage-welcome-photo + .collage-welcome-photo {
+  margin-left: -26px;
+}
+
+.collage-welcome-photo:nth-child(odd) {
+  transform: rotate(-4deg);
+}
+
+.collage-welcome-photo:nth-child(even) {
+  transform: rotate(3deg) translateY(6px);
+}
+
+.collage-welcome-result {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 18px 30px -18px rgba(45, 33, 102, 0.45);
+}
+
+.collage-welcome-result > .art-crop {
+  position: absolute;
+  inset: 0;
+}
+
+.collage-welcome-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.collage-welcome-cutout img {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+}
+
+/* Zoom, not a transform, so the previews take less room as well as looking smaller. */
+@media (max-width: 820px) {
+  .gif-welcome {
+    zoom: 0.5;
+  }
+
+  .collage-welcome {
+    zoom: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gif-welcome-frame {
+    transition: none;
+  }
+}
+
+/* ---------- quick guide (over the example) ---------- */
+.guide-ring {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  border-radius: 18px;
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 0 0 9999px rgba(29, 27, 24, 0.18);
+  transition:
+    top 260ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    left 260ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    width 260ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    height 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.guide-card {
+  position: fixed;
+  z-index: 61;
+  box-sizing: border-box;
+  padding: 18px 18px 16px;
+  border-radius: 18px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 24px 60px rgba(20, 18, 16, 0.3);
+  text-align: left;
+}
+
+.guide-count {
+  margin: 0;
+  font: 500 12px var(--mono);
+  color: var(--accent);
+}
+
+.guide-card h2 {
+  margin: 6px 0 0;
+  font-size: 19px;
+  color: var(--text-h);
+}
+
+.guide-body {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.guide-actions {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-skip {
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.guide-skip:hover {
+  color: var(--text-h);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-ring {
+    transition: none;
+  }
 }
 
 /* ---------- carousel welcome (the empty carousel) ---------- */

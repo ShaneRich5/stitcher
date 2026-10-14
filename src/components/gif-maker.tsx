@@ -21,7 +21,9 @@ import {
 } from '../lib/gif-doc'
 import { clearHandoff, peekHandoff } from '../lib/handoff'
 import { getImage } from '../lib/image-registry'
+import { hasSeenExample, markExampleSeen } from '../lib/first-use'
 import { listFiles, loadImageFiles } from '../lib/load-image'
+import { makeGifSample } from '../lib/samples'
 import { useElementSize } from '../lib/use-element-size'
 import { useMediaQuery } from '../lib/use-media-query'
 import { useStoredMode } from '../lib/use-stored-mode'
@@ -34,10 +36,37 @@ import { GifQuick } from './gif-quick'
 import { GifScreen } from './gif-screen'
 import { Icon } from './icons'
 import { ModeSwitch } from './mode-switch'
+import { QuickGuide, type GuideStep } from './quick-guide'
 import { StartOverDialog } from './start-over-dialog'
 import { StudioRail } from './studio-rail'
+import { GifWelcomePreview, ToolWelcome } from './tool-welcome'
 
 type FrameView = 'strip' | 'timeline'
+
+/** The quick guide over the example, one stop per part of Quick's layout. */
+const GUIDE: GuideStep[] = [
+  {
+    target: 'player',
+    title: 'This is an example',
+    body: 'Six frames of a sunset, flipping in a loop. Everything here works, so try it out.',
+  },
+  { target: 'speed', title: 'Pick a speed', body: 'How fast the frames flip, from a slideshow to near video.' },
+  {
+    target: 'frame-tools',
+    title: 'Hold a frame longer',
+    body: 'Give the frame you’re on more time, duplicate it, or play the whole loop backwards.',
+  },
+  {
+    target: 'add',
+    title: 'Now use your own photos',
+    body: 'Add frames and they replace the example. Drop them on the page or paste them, too.',
+  },
+  {
+    target: 'export',
+    title: 'Export when it looks right',
+    body: 'An MP4 for Reels, or a GIF for posts and chats. It’s made on your device.',
+  },
+]
 
 const VIEW_KEY = 'stitcher.gif.view'
 const MODE_KEY = 'stitcher.gif.mode'
@@ -90,6 +119,13 @@ export function GifMaker() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  /** True while the frames are the sample a first visit opens with; adding frames replaces them. */
+  const [sample, setSample] = useState(false)
+  /** True while the sample is being drawn, so the landing page doesn't flash up before it. */
+  const [sampleLoading, setSampleLoading] = useState(() => !peekHandoff() && !hasSeenExample('gif'))
+  const [guide, setGuide] = useState(false)
+  /** Bumped by anything that changes the frames wholesale, so a sample still loading doesn't land on top. */
+  const sampleRequest = useRef(0)
   const noticeTimer = useRef<number | undefined>(undefined)
   const [canvasRef, canvasBox] = useElementSize()
   const isPhone = useMediaQuery('(max-width: 820px)')
@@ -112,6 +148,49 @@ export function GifMaker() {
 
   // The doc has taken any handed-over frames, so a later visit starts fresh.
   useEffect(() => clearHandoff(), [])
+
+  /**
+   * Show the sample frames with the quick guide over them, unless something else has filled the
+   * doc by the time they're drawn.
+   */
+  const loadSample = () => {
+    const request = ++sampleRequest.current
+    makeGifSample().then(
+      (frames) => {
+        if (request !== sampleRequest.current) return
+        setDoc((d) => (d.frames.length ? d : { ...d, frames }))
+        setSample(true)
+        setGuide(true)
+        setFrameIndex(0)
+        setPlaying(true)
+        setSampleLoading(false)
+      },
+      (e) => {
+        console.error(e)
+        setSampleLoading(false)
+      },
+    )
+  }
+
+  /** The landing page's way back to the example. The guide walks Quick's layout, so it switches there. */
+  const showExample = () => {
+    setMode('quick')
+    setSampleLoading(true)
+    loadSample()
+  }
+
+  const closeGuide = () => {
+    setGuide(false)
+    markExampleSeen('gif')
+  }
+
+  // The first visit opens on the example, unless another tool handed frames over. After that, an
+  // empty tool is the landing page.
+  useEffect(() => {
+    if (sampleLoading) loadSample()
+    // Only on arrival: later, an empty doc means the frames were removed on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     try {
@@ -146,7 +225,15 @@ export function GifMaker() {
       naturalWidth: img.naturalWidth,
       naturalHeight: img.naturalHeight,
     }))
-    setDoc((d) => ({ ...d, frames: [...d.frames, ...frames] }))
+    // Your first frames replace the sample rather than joining it.
+    const replace = sample
+    sampleRequest.current++
+    setSample(false)
+    setGuide(false)
+    setSampleLoading(false)
+    if (replace) markExampleSeen('gif')
+    setDoc((d) => ({ ...d, frames: replace ? frames : [...d.frames, ...frames] }))
+    if (replace) setFrameIndex(0)
   }
 
   const removeAt = (id: string) => {
@@ -176,6 +263,9 @@ export function GifMaker() {
     setDoc(createGifDoc())
     setFrameIndex(0)
     setPlaying(true)
+    setSample(false)
+    setGuide(false)
+    sampleRequest.current++
   }
 
   const runExport = async () => {
@@ -258,6 +348,7 @@ export function GifMaker() {
         type="button"
         className="btn btn-primary"
         disabled={!hasFrames || busy}
+        data-guide="export"
         onClick={() => void runExport()}
       >
         <Icon name="download" />
@@ -416,13 +507,7 @@ export function GifMaker() {
             </div>
           ) : null}
         </>
-      ) : (
-        <div className="empty-state">
-          <Icon name="film" size={28} />
-          <h2>Turn a series of photos into a loop</h2>
-          <p>Drop images here, paste them, or add them from the tools on the left.</p>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 
@@ -472,7 +557,22 @@ export function GifMaker() {
         }}
         onDrop={onDrop}
       >
-        {!studio ? (
+        {!hasFrames ? (
+          sampleLoading ? null : (
+            <ToolWelcome
+              title="A few photos. One loop."
+              lede="Add photos in the order they should play, and Stitcher turns them into a GIF or a video that loops."
+              chooseLabel="Choose photos"
+              onFiles={(files) => void addFiles(files)}
+              onExample={showExample}
+              preview={<GifWelcomePreview />}
+              others={[
+                { to: '/carousel', label: 'Carousel' },
+                { to: '/collage', label: 'Collage' },
+              ]}
+            />
+          )
+        ) : !studio ? (
           quick
         ) : isPhone ? (
           <div className="studio is-phone">
@@ -500,6 +600,7 @@ export function GifMaker() {
           </div>
         )}
 
+        {guide && hasFrames ? <QuickGuide label="GIF quick guide" steps={GUIDE} onClose={closeGuide} /> : null}
         {dragging ? <div className="drop-overlay">Drop to add frames</div> : null}
         {notice ? (
           <div className="toast" role="status">
