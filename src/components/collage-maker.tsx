@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type DragEvent } from 'react'
+import { failureMessage } from '../lib/app-update'
 import {
   COLLAGE_FPS,
   collageDurationMs,
@@ -189,6 +190,8 @@ export function CollageMaker() {
     queueRunning.current = true
     let done = 0
     let failed = 0
+    /** The last cutout failure, so an old build can be told apart from a photo that wouldn't cut out. */
+    let lastError: unknown = null
     try {
       while (queue.current.length) {
         const item = queue.current.shift()!
@@ -205,6 +208,7 @@ export function CollageMaker() {
         } catch (e) {
           console.error(e)
           failed++
+          lastError = e
           setDoc((d) => patchItem(d, item.id, { failed: true }))
         }
         done++
@@ -215,7 +219,7 @@ export function CollageMaker() {
       setCutoutStatus(null)
     }
     if (failed) {
-      say(`Could not cut out ${failed} photo${failed > 1 ? 's' : ''} — retry from the strip`)
+      say(failureMessage(lastError, `Could not cut out ${failed} photo${failed > 1 ? 's' : ''} — retry from the strip`))
     } else if (done) {
       setTimeMs(0)
       setPlaying(true)
@@ -307,7 +311,7 @@ export function CollageMaker() {
       })
       downloadBlob(blob, `stitcher-collage.${snapshot.format}`)
     } catch (e) {
-      say(e instanceof Error ? e.message : 'Export failed')
+      say(failureMessage(e, e instanceof Error ? e.message : 'Export failed'))
     } finally {
       setExportProgress(null)
     }
