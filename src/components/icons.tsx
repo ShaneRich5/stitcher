@@ -47,6 +47,7 @@ export type IconName =
   | 'shuffle'
   | 'reverse'
   | 'magnet'
+  | 'flag'
   | 'fill-slide'
 
 const PATHS: Record<IconName, ReactNode> = {
@@ -301,6 +302,7 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M6 8h4M14 8h4" />
     </>
   ),
+  flag: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
   'fill-slide': <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5M9 9h6v6H9Z" />,
 }
 

@@ -10,6 +10,7 @@ import {
   SUNSET_ART,
   type Rect,
 } from '../lib/samples'
+import { ReportIssueLink } from './app-nav'
 import { Icon } from './icons'
 
 type Props = {
@@ -73,7 +74,7 @@ export function ToolWelcome({ title, lede, chooseLabel, onFiles, onExample, prev
             <Link to={o.to}>{o.label}</Link>
           </span>
         ))}{' '}
-        tool.
+        tool. Something not working? <ReportIssueLink variant="text" />.
       </p>
     </div>
   )

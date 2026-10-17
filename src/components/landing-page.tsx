@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AppNav } from './app-nav'
+import { AppNav, ReportIssueLink } from './app-nav'
 import { PanoramaScene } from './panorama-scene'
 
 const SLIDES = [0, 1, 2, 3]
@@ -190,6 +190,9 @@ export function LandingPage() {
           Stitcher
         </span>
         <span>A free image studio for the posts people swipe through.</span>
+        <span className="landing-footer-report">
+          Something not working? <ReportIssueLink variant="text" />
+        </span>
       </footer>
     </>
   )
