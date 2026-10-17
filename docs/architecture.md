@@ -45,6 +45,7 @@ src/
                               output size and the bars / soft frame checks
     handoff.ts                Frames passed between tools in memory (carousel slides -> GIF tool)
     app-update.ts             Notices a replaced build (a lazy load 404s, or the live page names a newer one)
+    report-issue.ts           "Report an issue": a new GitHub issue with where, build, browser and screen
     samples.ts                The GIF and Collage first-visit samples, drawn from assets/samples/*.svg
     first-use.ts              Whether this browser has been through a tool's example
     collage.ts                CollageDoc helpers, styles (the Instagram loop, or stacks whose photos fade

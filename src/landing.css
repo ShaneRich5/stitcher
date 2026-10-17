@@ -340,6 +340,10 @@
   font-size: 14px;
 }
 
+.landing-footer-report a {
+  color: var(--accent);
+}
+
 .landing-footer-brand {
   display: inline-flex;
   align-items: center;
